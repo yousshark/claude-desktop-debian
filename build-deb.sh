@@ -70,25 +70,48 @@ if [ ! -z "$DEPS_TO_INSTALL" ]; then
     echo "System dependencies installed successfully"
 fi
 
-# Install electron globally via npm if not present
-if ! check_command "electron"; then
+# Check for electron - first local, then global
+# Check for local electron in node_modules
+if [ -f "$(pwd)/node_modules/.bin/electron" ]; then
+    echo "✓ local electron found in node_modules"
+    LOCAL_ELECTRON="$(pwd)/node_modules/.bin/electron"
+    export PATH="$(pwd)/node_modules/.bin:$PATH"
+elif ! check_command "electron"; then
     echo "Installing electron via npm..."
-    npm install -g electron
-    if ! check_command "electron"; then
-        echo "Failed to install electron. Please install it manually:"
-        echo "sudo npm install -g electron"
-        exit 1
+    # Try local installation first
+    if [ -f "package.json" ]; then
+        echo "Found package.json, installing electron locally..."
+        npm install --save-dev electron
+        if [ -f "$(pwd)/node_modules/.bin/electron" ]; then
+            echo "✓ Local electron installed successfully"
+            LOCAL_ELECTRON="$(pwd)/node_modules/.bin/electron"
+            export PATH="$(pwd)/node_modules/.bin:$PATH"
+        else
+            # Fall back to global installation if local fails
+            npm install -g electron
+            if ! check_command "electron"; then
+                echo "Failed to install electron. Please install it manually:"
+                echo "npm install --save-dev electron"
+                exit 1
+            fi
+            echo "Global electron installed successfully"
+        fi
+    else
+        # No package.json, try global installation
+        npm install -g electron
+        if ! check_command "electron"; then
+            echo "Failed to install electron. Please install it manually:"
+            echo "npm install --save-dev electron"
+            exit 1
+        fi
+        echo "Global electron installed successfully"
     fi
-    echo "Electron installed successfully"
 fi
 
-# Extract version from the installer filename
-VERSION=$(basename "$CLAUDE_DOWNLOAD_URL" | grep -oP 'Claude-Setup-x64\.exe' | sed 's/Claude-Setup-x64\.exe/0.8.0/')
 PACKAGE_NAME="claude-desktop"
 ARCHITECTURE="amd64"
 MAINTAINER="Claude Desktop Linux Maintainers"
 DESCRIPTION="Claude Desktop for Linux"
-
 # Create working directories
 WORK_DIR="$(pwd)/build"
 DEB_ROOT="$WORK_DIR/deb-package"
@@ -126,7 +149,22 @@ if ! 7z x -y "$CLAUDE_EXE"; then
     exit 1
 fi
 
-if ! 7z x -y "AnthropicClaude-$VERSION-full.nupkg"; then
+# Extract nupkg filename and version
+NUPKG_PATH=$(find . -name "AnthropicClaude-*.nupkg" | head -1)
+if [ -z "$NUPKG_PATH" ]; then
+    echo "❌ Could not find AnthropicClaude nupkg file"
+    exit 1
+fi
+
+# Extract version from the nupkg filename
+VERSION=$(echo "$NUPKG_PATH" | grep -oP 'AnthropicClaude-\K[0-9]+\.[0-9]+\.[0-9]+(?=-full)')
+if [ -z "$VERSION" ]; then
+    echo "❌ Could not extract version from nupkg filename"
+    exit 1
+fi
+echo "✓ Detected Claude version: $VERSION"
+
+if ! 7z x -y "$NUPKG_PATH"; then
     echo "❌ Failed to extract nupkg"
     exit 1
 fi
@@ -172,7 +210,7 @@ mkdir -p electron-app
 cp "lib/net45/resources/app.asar" electron-app/
 cp -r "lib/net45/resources/app.asar.unpacked" electron-app/
 
-cd electron-app
+cd "$WORK_DIR/electron-app"
 npx asar extract app.asar app.asar.contents
 
 # Replace native module with stub implementation
@@ -277,6 +315,12 @@ EOF
 cp app.asar "$INSTALL_DIR/lib/$PACKAGE_NAME/"
 cp -r app.asar.unpacked "$INSTALL_DIR/lib/$PACKAGE_NAME/"
 
+# Copy local electron if available
+if [ ! -z "$LOCAL_ELECTRON" ]; then
+    echo "Copying local electron to package..."
+    cp -r "$(dirname "$LOCAL_ELECTRON")/.." "$INSTALL_DIR/lib/$PACKAGE_NAME/node_modules/"
+fi
+
 # Create desktop entry
 cat > "$INSTALL_DIR/share/applications/claude-desktop.desktop" << EOF
 [Desktop Entry]
@@ -293,7 +337,14 @@ EOF
 # Create launcher script
 cat > "$INSTALL_DIR/bin/claude-desktop" << EOF
 #!/bin/bash
-electron /usr/lib/claude-desktop/app.asar "\$@"
+
+# Try to use local electron if available
+if [ -f "\$(dirname \$0)/../lib/claude-desktop/node_modules/.bin/electron" ]; then
+    "\$(dirname \$0)/../lib/claude-desktop/node_modules/.bin/electron" /usr/lib/claude-desktop/app.asar "\$@"
+else
+    # Fall back to globally installed electron
+    electron /usr/lib/claude-desktop/app.asar "\$@"
+fi
 EOF
 chmod +x "$INSTALL_DIR/bin/claude-desktop"
 
@@ -313,8 +364,9 @@ Description: $DESCRIPTION
 EOF
 
 # Build .deb package
-echo "📦 Building .deb package..."
-DEB_FILE="$(pwd)/claude-desktop_${VERSION}_${ARCHITECTURE}.deb"
+echo "🖹 Building .deb package..."
+DEB_FILE="$WORK_DIR/claude-desktop_${VERSION}_${ARCHITECTURE}.deb"
+
 if ! dpkg-deb --build "$DEB_ROOT" "$DEB_FILE"; then
     echo "❌ Failed to build .deb package"
     exit 1
