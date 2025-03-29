@@ -23,10 +23,11 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Update pacman database and install build tools
+    - name: Update pacman database and install dependencies
       run: |
         pacman -Syu --noconfirm
-        pacman -S --needed base-devel git --noconfirm # base-devel includes makepkg
+        # Install build tools AND package dependencies (runtime + makedepends from PKGBUILD)
+        pacman -S --needed base-devel git nodejs npm electron p7zip icoutils imagemagick wget --noconfirm
 
     - name: Set ownership for makepkg
       # makepkg cannot run as root, change ownership to a non-root user
@@ -39,10 +40,10 @@ jobs:
 
     - name: Build the package using PKGBUILD
       # Run makepkg as the non-root user 'builduser'
-      # -s installs dependencies from repos
       # -f forces the build even if package is already built
       # --noconfirm avoids interactive prompts
-      run: sudo -u builduser makepkg -sf --noconfirm
+      # Remove -s because dependencies are installed above
+      run: sudo -u builduser makepkg -f --noconfirm
 
     - name: Upload Arch package artifact
       if: always()
