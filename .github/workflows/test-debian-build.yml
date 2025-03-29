@@ -2,16 +2,11 @@ name: Test Debian Build Script
 
 on:
   push:
-    branches: [ main, dev ] # Trigger on push to main or dev
+    # No branches filter = trigger on any branch push
     paths:
       - 'build-deb.sh'
       - '.github/workflows/test-debian-build.yml'
-  workflow_dispatch: # Allows manual triggering from the Actions tab on GitHub
-    inputs:
-      branch:
-        description: 'Branch to run on'
-        required: true
-        default: 'dev'
+  workflow_dispatch: # Allows manual triggering from the Actions tab on GitHub (uses the selected branch context)
 
 jobs:
   build:

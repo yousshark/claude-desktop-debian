@@ -2,16 +2,11 @@ name: Test Arch Linux Build (PKGBUILD)
 
 on:
   push:
-    branches: [ main, dev ] # Trigger on push to main or dev
+    # No branches filter = trigger on any branch push
     paths:
       - 'PKGBUILD'
       - '.github/workflows/test-arch-build.yml'
-  workflow_dispatch: # Allows manual triggering from the Actions tab on GitHub
-    inputs:
-      branch:
-        description: 'Branch to run on'
-        required: true
-        default: 'dev'
+  workflow_dispatch: # Allows manual triggering from the Actions tab on GitHub (uses the selected branch context)
 
 jobs:
   build:
