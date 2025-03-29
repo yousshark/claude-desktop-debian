@@ -1,0 +1,54 @@
+name: Test Arch Linux Build (PKGBUILD)
+
+on:
+  push:
+    branches: [ main, dev ] # Trigger on push to main or dev
+    paths:
+      - 'PKGBUILD'
+      - '.github/workflows/test-arch-build.yml'
+  workflow_dispatch: # Allows manual triggering from the Actions tab on GitHub
+    inputs:
+      branch:
+        description: 'Branch to run on'
+        required: true
+        default: 'dev'
+
+jobs:
+  build:
+    # Use a container running Arch Linux
+    runs-on: ubuntu-latest # Base runner
+    container: archlinux:latest # Specify Arch Linux container
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Update pacman database and install build tools
+      run: |
+        pacman -Syu --noconfirm
+        pacman -S --needed base-devel git --noconfirm # base-devel includes makepkg
+
+    - name: Set ownership for makepkg
+      # makepkg cannot run as root, change ownership to a non-root user
+      # The default user in many containers is root, so we need this workaround
+      run: |
+        useradd -m builduser
+        chown -R builduser:builduser .
+        # Pass necessary env vars if needed, e.g., for npm cache
+        # export HOME=/home/builduser
+
+    - name: Build the package using PKGBUILD
+      # Run makepkg as the non-root user 'builduser'
+      # -s installs dependencies from repos
+      # -f forces the build even if package is already built
+      # --noconfirm avoids interactive prompts
+      run: sudo -u builduser makepkg -sf --noconfirm
+
+    - name: Upload Arch package artifact
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: claude-desktop-arch-package
+        # Arch packages can be .zst or .xz depending on makepkg.conf
+        path: claude-desktop-*.pkg.tar.*
+        if-no-files-found: ignore
