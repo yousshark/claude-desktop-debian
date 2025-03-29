@@ -428,6 +428,17 @@ Description: $DESCRIPTION
  Requires: nodejs (>= 12.0.0), npm
 EOF
 
+# Create postinst script
+echo "Creating postinst script..."
+cat > "$DEB_ROOT/DEBIAN/postinst" << EOF
+#!/bin/sh
+set -e
+echo "Updating desktop database..."
+update-desktop-database /usr/share/applications &> /dev/null || true
+exit 0
+EOF
+chmod +x "$DEB_ROOT/DEBIAN/postinst"
+
 # Build .deb package
 echo "🖹 Building .deb package..."
 DEB_FILE="$WORK_DIR/claude-desktop_${VERSION}_${ARCHITECTURE}.deb"
