@@ -2,7 +2,7 @@ name: Test Debian Build Script
 
 on:
   push:
-    branches: [ main, dev-debian ] # Trigger on push to main or dev-debian
+    branches: [ main, dev ] # Trigger on push to main or dev
     paths:
       - 'build-deb.sh'
       - '.github/workflows/test-debian-build.yml'
@@ -11,7 +11,7 @@ on:
       branch:
         description: 'Branch to run on'
         required: true
-        default: 'dev-debian'
+        default: 'dev'
 
 jobs:
   build:
