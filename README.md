@@ -1,5 +1,4 @@
-## LOOKING FOR NEW MAINTAINER
-I've had fun with this, but I'm ready to pass the torch. Let me know if you'd like to take a swing at this!
+Now with Arch(PKGBUILD) support!
 
 ***THIS IS AN UNOFFICIAL BUILD SCRIPT!***
 
@@ -34,7 +33,9 @@ cd claude-desktop-debian
 
 # Build the package
 sudo ./build-deb.sh
-sudo dpkg -i ./build/claude-desktop_0.8.1_amd64.deb
+# Note: The version number (e.g., 0.8.1) in the command below is an example.
+# The actual filename will contain the version detected by the script.
+sudo dpkg -i ./build/claude-desktop_VERSION_amd64.deb
 
 # The script will automatically:
 # - Check for and install required dependencies
@@ -48,7 +49,66 @@ Requirements:
 - Node.js >= 12.0.0 and npm
 - Root/sudo access for dependency installation
 
-## 2. NixOS Implementation
+## 2. Arch Linux (PKGBUILD)
+
+For Arch Linux and Arch-based distributions, you can build and install using the provided `PKGBUILD`:
+
+```bash
+# Clone this repository
+git clone https://github.com/aaddrick/claude-desktop-debian.git
+cd claude-desktop-debian
+
+# Build and install the package
+# This command automatically handles dependencies and installation
+makepkg -si
+
+# The PKGBUILD will:
+# - Check for and install required dependencies (nodejs, npm, electron, p7zip, icoutils, imagemagick)
+# - Download and extract resources from the Windows version
+# - Create an Arch Linux package
+```
+**Note:** The `pkgver` in the `PKGBUILD` is currently hardcoded (`0.9.0`). You may need to update it manually if a newer version of Claude Desktop is released before the `PKGBUILD` is updated in this repository.
+
+## Uninstallation
+
+If you installed the package using `dpkg`, you can uninstall it using:
+
+```bash
+sudo dpkg -r claude-desktop
+```
+
+If you also want to remove configuration files (including MCP settings), use `purge`:
+
+```bash
+sudo dpkg -P claude-desktop
+```
+
+## Troubleshooting
+
+### Application Fails to Launch
+
+If the Claude Desktop application installs successfully but fails to launch (you might see errors related to sandboxing or zygote processes in the terminal when running `claude-desktop`), try launching it with the `--no-sandbox` flag:
+
+```bash
+claude-desktop --no-sandbox
+```
+
+If this works, you can make it permanent by editing the launcher script:
+
+1.  Open `/usr/bin/claude-desktop` with root privileges (e.g., `sudo nano /usr/bin/claude-desktop`).
+2.  Find the line starting with `electron` or `$(dirname $0)/../lib/claude-desktop/node_modules/.bin/electron`.
+3.  Append `--no-sandbox` to that line, before the `"$@"` part. For example:
+    ```bash
+    # Original:
+    # electron /usr/lib/claude-desktop/app.asar "$@"
+    # Modified:
+    electron /usr/lib/claude-desktop/app.asar --no-sandbox "$@"
+    ```
+4.  Save the file.
+
+**Note:** Disabling the sandbox reduces security isolation. Use this workaround if you understand the implications.
+
+## 3. NixOS Implementation
 
 For NixOS users, please refer to [k3d3's claude-desktop-linux-flake](https://github.com/k3d3/claude-desktop-linux-flake) repository. Their implementation is specifically designed for NixOS and provides the original Nix flake that inspired this project.
 

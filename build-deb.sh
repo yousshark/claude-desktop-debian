@@ -11,10 +11,42 @@ if [ ! -f "/etc/debian_version" ]; then
 fi
 
 # Check for root/sudo
-if [ "$EUID" -ne 0 ]; then
+IS_SUDO=false
+if [ "$EUID" -eq 0 ]; then
+    IS_SUDO=true
+    # Check if running via sudo (and not directly as root)
+    if [ -n "$SUDO_USER" ]; then
+        ORIGINAL_USER="$SUDO_USER"
+        ORIGINAL_HOME=$(eval echo ~$ORIGINAL_USER)
+    else
+        # Running directly as root, no original user context
+        ORIGINAL_USER="root"
+        ORIGINAL_HOME="/root"
+    fi
+else
     echo "Please run with sudo to install dependencies"
     exit 1
 fi
+
+# Preserve NVM path if running under sudo and NVM exists for the original user
+if [ "$IS_SUDO" = true ] && [ "$ORIGINAL_USER" != "root" ] && [ -d "$ORIGINAL_HOME/.nvm" ]; then
+    echo "Found NVM installation for user $ORIGINAL_USER, attempting to preserve npm/npx path..."
+    # Source NVM script to set up NVM environment variables temporarily
+    export NVM_DIR="$ORIGINAL_HOME/.nvm"
+    [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh" # This loads nvm
+
+    # Find the path to the currently active or default Node version's bin directory
+    # nvm_find_node_version might not be available, try finding the latest installed version
+    NODE_BIN_PATH=$(find "$NVM_DIR/versions/node" -maxdepth 2 -type d -name 'bin' | sort -V | tail -n 1)
+
+    if [ -n "$NODE_BIN_PATH" ] && [ -d "$NODE_BIN_PATH" ]; then
+        echo "Adding $NODE_BIN_PATH to PATH"
+        export PATH="$NODE_BIN_PATH:$PATH"
+    else
+        echo "Warning: Could not determine NVM Node bin path. npm/npx might not be found."
+    fi
+fi
+
 
 # Print system information
 echo "System Information:"
@@ -88,20 +120,34 @@ elif ! check_command "electron"; then
             export PATH="$(pwd)/node_modules/.bin:$PATH"
         else
             # Fall back to global installation if local fails
+            echo "Local electron install failed or not possible, trying global..."
             npm install -g electron
+            # Attempt to fix permissions if installed globally
+            if check_command "electron"; then
+                ELECTRON_PATH=$(command -v electron)
+                echo "Attempting to fix permissions for global electron at $ELECTRON_PATH..."
+                chmod -R a+rx "$(dirname "$ELECTRON_PATH")/../lib/node_modules/electron" || echo "Warning: Failed to chmod global electron installation directory. Permissions might be incorrect."
+            fi
             if ! check_command "electron"; then
-                echo "Failed to install electron. Please install it manually:"
-                echo "npm install --save-dev electron"
+                echo "Failed to install electron globally. Please install it manually:"
+                echo "npm install -g electron # or npm install --save-dev electron in project root"
                 exit 1
             fi
             echo "Global electron installed successfully"
         fi
     else
         # No package.json, try global installation
+        echo "No package.json found, trying global electron installation..."
         npm install -g electron
+        # Attempt to fix permissions if installed globally
+        if check_command "electron"; then
+            ELECTRON_PATH=$(command -v electron)
+            echo "Attempting to fix permissions for global electron at $ELECTRON_PATH..."
+            chmod -R a+rx "$(dirname "$ELECTRON_PATH")/../lib/node_modules/electron" || echo "Warning: Failed to chmod global electron installation directory. Permissions might be incorrect."
+        fi
         if ! check_command "electron"; then
-            echo "Failed to install electron. Please install it manually:"
-            echo "npm install --save-dev electron"
+            echo "Failed to install electron globally. Please install it manually:"
+            echo "npm install -g electron"
             exit 1
         fi
         echo "Global electron installed successfully"
@@ -156,10 +202,10 @@ if [ -z "$NUPKG_PATH" ]; then
     exit 1
 fi
 
-# Extract version from the nupkg filename
-VERSION=$(echo "$NUPKG_PATH" | grep -oP 'AnthropicClaude-\K[0-9]+\.[0-9]+\.[0-9]+(?=-full)')
+# Extract version from the nupkg filename (using LC_ALL=C for locale compatibility)
+VERSION=$(echo "$NUPKG_PATH" | LC_ALL=C grep -oP 'AnthropicClaude-\K[0-9]+\.[0-9]+\.[0-9]+(?=-full)')
 if [ -z "$VERSION" ]; then
-    echo "❌ Could not extract version from nupkg filename"
+    echo "❌ Could not extract version from nupkg filename: $NUPKG_PATH"
     exit 1
 fi
 echo "✓ Detected Claude version: $VERSION"
@@ -262,12 +308,8 @@ mkdir -p app.asar.contents/resources
 mkdir -p app.asar.contents/resources/i18n
 
 cp ../lib/net45/resources/Tray* app.asar.contents/resources/
+# Copy only the language-specific JSON files (e.g., en-US.json)
 cp ../lib/net45/resources/*-*.json app.asar.contents/resources/i18n/
-
-# Copy i18n json files
-mkdir -p app.asar.contents/resources/i18n
-cp ../lib/net45/resources/*.json app.asar.contents/resources/i18n/
-
 
 
 # Repackage app.asar
@@ -340,16 +382,33 @@ MimeType=x-scheme-handler/claude;
 StartupWMClass=Claude
 EOF
 
-# Create launcher script
+# Create launcher script with Wayland flags
 cat > "$INSTALL_DIR/bin/claude-desktop" << EOF
 #!/bin/bash
+# Detect if Wayland is likely running
+IS_WAYLAND=false
+if [ ! -z "\$WAYLAND_DISPLAY" ]; then
+  IS_WAYLAND=true
+fi
+
+# Base command arguments
+ELECTRON_ARGS=("/usr/lib/claude-desktop/app.asar")
+
+# Add Wayland flags if Wayland is detected
+if [ "\$IS_WAYLAND" = true ]; then
+  echo "Wayland detected, adding Wayland flags to Electron..."
+  ELECTRON_ARGS+=("--enable-features=UseOzonePlatform,WaylandWindowDecorations" "--ozone-platform=wayland")
+fi
+
+# Append any arguments passed to the script
+ELECTRON_ARGS+=("\$@")
 
 # Try to use local electron if available
 if [ -f "\$(dirname \$0)/../lib/claude-desktop/node_modules/.bin/electron" ]; then
-    "\$(dirname \$0)/../lib/claude-desktop/node_modules/.bin/electron" /usr/lib/claude-desktop/app.asar "\$@"
+    "\$(dirname \$0)/../lib/claude-desktop/node_modules/.bin/electron" "\${ELECTRON_ARGS[@]}"
 else
     # Fall back to globally installed electron
-    electron /usr/lib/claude-desktop/app.asar "\$@"
+    electron "\${ELECTRON_ARGS[@]}"
 fi
 EOF
 chmod +x "$INSTALL_DIR/bin/claude-desktop"

@@ -1,0 +1,45 @@
+name: Test Debian Build Script
+
+on:
+  push:
+    branches: [ main, dev-debian ] # Trigger on push to main or dev-debian
+    paths:
+      - 'build-deb.sh'
+      - '.github/workflows/test-debian-build.yml'
+  workflow_dispatch: # Allows manual triggering from the Actions tab on GitHub
+    inputs:
+      branch:
+        description: 'Branch to run on'
+        required: true
+        default: 'dev-debian'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest # Ubuntu is Debian-based and readily available
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    # Optional: Set up a specific Node.js version if your script needs it
+    # - name: Set up Node.js
+    #   uses: actions/setup-node@v4
+    #   with:
+    #     node-version: '18' # Example version
+
+    - name: Make build script executable
+      run: chmod +x ./build-deb.sh
+
+    - name: Run Debian build script
+      # GitHub Actions runners provide passwordless sudo
+      # Use --noprogressbar for cleaner logs if apt commands support it
+      run: sudo ./build-deb.sh
+
+    - name: Upload Debian package artifact
+      # This step runs even if the previous step fails, change 'always()' if needed
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: claude-desktop-debian-package
+        path: build/claude-desktop_*.deb # Use wildcard for version
+        if-no-files-found: ignore # Don't fail if the deb isn't found (e.g., build failed)
