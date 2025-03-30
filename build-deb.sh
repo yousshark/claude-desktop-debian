@@ -373,7 +373,7 @@ fi
 cat > "$INSTALL_DIR/share/applications/claude-desktop.desktop" << EOF
 [Desktop Entry]
 Name=Claude
-Exec=claude-desktop %u
+Exec=/usr/bin/claude-desktop %u
 Icon=claude-desktop
 Type=Application
 Terminal=false
@@ -382,34 +382,54 @@ MimeType=x-scheme-handler/claude;
 StartupWMClass=Claude
 EOF
 
-# Create launcher script with Wayland flags
+# Create launcher script with Wayland flags, logging, and no-sandbox
 cat > "$INSTALL_DIR/bin/claude-desktop" << EOF
 #!/bin/bash
+LOG_FILE="\$HOME/claude-desktop-launcher.log"
+echo "--- Claude Desktop Launcher Start ---" >> "\$LOG_FILE"
+echo "Timestamp: \$(date)" >> "\$LOG_FILE"
+echo "Arguments: \$@" >> "\$LOG_FILE"
+
 # Detect if Wayland is likely running
 IS_WAYLAND=false
 if [ ! -z "\$WAYLAND_DISPLAY" ]; then
   IS_WAYLAND=true
+  echo "Wayland detected" >> "\$LOG_FILE"
 fi
 
-# Base command arguments
-ELECTRON_ARGS=("/usr/lib/claude-desktop/app.asar")
+# Determine Electron executable path
+ELECTRON_EXEC="electron" # Default to global
+LOCAL_ELECTRON_PATH="/usr/lib/claude-desktop/node_modules/.bin/electron"
+if [ -f "\$LOCAL_ELECTRON_PATH" ]; then
+    ELECTRON_EXEC="\$LOCAL_ELECTRON_PATH"
+    echo "Using local Electron: \$ELECTRON_EXEC" >> "\$LOG_FILE"
+else
+    echo "Using global Electron: \$ELECTRON_EXEC" >> "\$LOG_FILE"
+fi
+
+# Base command arguments array, starting with app path and no-sandbox
+APP_PATH="/usr/lib/claude-desktop/app.asar"
+ELECTRON_ARGS=("\$APP_PATH" "--no-sandbox")
 
 # Add Wayland flags if Wayland is detected
 if [ "\$IS_WAYLAND" = true ]; then
-  echo "Wayland detected, adding Wayland flags to Electron..."
+  echo "Adding Wayland flags" >> "\$LOG_FILE"
   ELECTRON_ARGS+=("--enable-features=UseOzonePlatform,WaylandWindowDecorations" "--ozone-platform=wayland")
 fi
 
-# Append any arguments passed to the script
-ELECTRON_ARGS+=("\$@")
+# Change to the application directory
+echo "Changing directory to /usr/lib/claude-desktop" >> "\$LOG_FILE"
+cd /usr/lib/claude-desktop || { echo "Failed to cd to /usr/lib/claude-desktop" >> "\$LOG_FILE"; exit 1; }
 
-# Try to use local electron if available
-if [ -f "\$(dirname \$0)/../lib/claude-desktop/node_modules/.bin/electron" ]; then
-    "\$(dirname \$0)/../lib/claude-desktop/node_modules/.bin/electron" "\${ELECTRON_ARGS[@]}"
-else
-    # Fall back to globally installed electron
-    electron "\${ELECTRON_ARGS[@]}"
-fi
+# Execute Electron with app path, flags, and script arguments
+# Redirect stdout and stderr to the log file
+FINAL_CMD="\"\$ELECTRON_EXEC\" \"\${ELECTRON_ARGS[@]}\" \"\$@\""
+echo "Executing: \$FINAL_CMD" >> "\$LOG_FILE"
+"\$ELECTRON_EXEC" "\${ELECTRON_ARGS[@]}" "\$@" >> "\$LOG_FILE" 2>&1
+EXIT_CODE=\$?
+echo "Electron exited with code: \$EXIT_CODE" >> "\$LOG_FILE"
+echo "--- Claude Desktop Launcher End ---" >> "\$LOG_FILE"
+exit \$EXIT_CODE
 EOF
 chmod +x "$INSTALL_DIR/bin/claude-desktop"
 
