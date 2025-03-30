@@ -382,7 +382,7 @@ MimeType=x-scheme-handler/claude;
 StartupWMClass=Claude
 EOF
 
-# Create launcher script with Wayland flags, logging, and no-sandbox
+# Create launcher script with Wayland flags and logging
 cat > "$INSTALL_DIR/bin/claude-desktop" << EOF
 #!/bin/bash
 LOG_FILE="\$HOME/claude-desktop-launcher.log"
@@ -407,9 +407,9 @@ else
     echo "Using global Electron: \$ELECTRON_EXEC" >> "\$LOG_FILE"
 fi
 
-# Base command arguments array, starting with app path and no-sandbox
+# Base command arguments array, starting with app path
 APP_PATH="/usr/lib/claude-desktop/app.asar"
-ELECTRON_ARGS=("\$APP_PATH" "--no-sandbox")
+ELECTRON_ARGS=("\$APP_PATH")
 
 # Add Wayland flags if Wayland is detected
 if [ "\$IS_WAYLAND" = true ]; then
@@ -453,8 +453,36 @@ echo "Creating postinst script..."
 cat > "$DEB_ROOT/DEBIAN/postinst" << EOF
 #!/bin/sh
 set -e
+
+# Update desktop database for MIME types
 echo "Updating desktop database..."
 update-desktop-database /usr/share/applications &> /dev/null || true
+
+# Set correct permissions for chrome-sandbox
+echo "Setting chrome-sandbox permissions..."
+SANDBOX_PATH=""
+# Check for sandbox in locally packaged electron first
+if [ -f "/usr/lib/claude-desktop/node_modules/electron/dist/chrome-sandbox" ]; then
+    SANDBOX_PATH="/usr/lib/claude-desktop/node_modules/electron/dist/chrome-sandbox"
+# If not found, try to find it in the path of the globally installed electron
+elif command -v electron >/dev/null 2>&1; then
+    ELECTRON_PATH=\$(command -v electron)
+    # Try to find sandbox relative to the electron binary path
+    POTENTIAL_SANDBOX="\$(dirname "\$ELECTRON_PATH")/../lib/node_modules/electron/dist/chrome-sandbox"
+    if [ -f "\$POTENTIAL_SANDBOX" ]; then
+        SANDBOX_PATH="\$POTENTIAL_SANDBOX"
+    fi
+fi
+
+if [ -n "\$SANDBOX_PATH" ] && [ -f "\$SANDBOX_PATH" ]; then
+    echo "Found chrome-sandbox at: \$SANDBOX_PATH"
+    chown root:root "\$SANDBOX_PATH" || echo "Warning: Failed to chown chrome-sandbox"
+    chmod 4755 "\$SANDBOX_PATH" || echo "Warning: Failed to chmod chrome-sandbox"
+    echo "Permissions set for \$SANDBOX_PATH"
+else
+    echo "Warning: chrome-sandbox binary not found. Sandbox may not function correctly."
+fi
+
 exit 0
 EOF
 chmod +x "$DEB_ROOT/DEBIAN/postinst"
