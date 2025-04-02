@@ -73,6 +73,14 @@ echo "Distribution: $(cat /etc/os-release | grep "PRETTY_NAME" | cut -d'"' -f2)"
 echo "Debian version: $(cat /etc/debian_version)"
 echo "Target Architecture: $ARCHITECTURE" # Display the target architecture
 
+# Define common variables needed before the split
+PACKAGE_NAME="claude-desktop"
+MAINTAINER="Claude Desktop Linux Maintainers"
+DESCRIPTION="Claude Desktop for Linux"
+WORK_DIR="$(pwd)/build" # Top-level build directory
+APP_STAGING_DIR="$WORK_DIR/electron-app" # Staging for app files before packaging
+VERSION="" # Will be determined after download
+
 # --- Build Format Selection ---
 # Function to display the menu
 display_menu() {
@@ -83,17 +91,31 @@ display_menu() {
     echo -e "\033[1;34m=================================\033[0m"
 }
 
+BUILD_FORMAT=""
 while true; do
     display_menu
-    read -n 1 -p $'\nEnter choice (1 or 2, any other key to cancel): ' BUILD_FORMAT
-    echo 
+    read -n 1 -p $'\nEnter choice (1 or 2, any other key to cancel): ' BUILD_FORMAT_CHOICE
+    echo
 
-    case $BUILD_FORMAT in
-        "1") echo -e "\033[1;36m✔ You selected Debian Package (.deb)\033[0m"; break ;;
-        "2") echo -e "\033[1;36m✔ You selected AppImage (.AppImage)\033[0m"; exit 0 ;;
-        *) echo -e "\033[1;31m✖ Cancelled.\033[0m"; exit 1 ;;
+    case $BUILD_FORMAT_CHOICE in
+        "1")
+            echo -e "\033[1;36m✔ You selected Debian Package (.deb)\033[0m"
+            BUILD_FORMAT="deb"
+            break
+            ;;
+        "2")
+            echo -e "\033[1;36m✔ You selected AppImage (.AppImage)\033[0m"
+            BUILD_FORMAT="appimage"
+            break
+            ;;
+        *)
+            echo # Add newline for clarity
+            echo -e "\033[1;31m✖ Cancelled.\033[0m"
+            exit 1
+            ;;
     esac
 done
+echo "-------------------------------------" # Add separator after selection/before next steps
 # --- End Build Format Selection ---
 
 
@@ -108,37 +130,32 @@ check_command() {
     fi
 }
 
-# Check and install dependencies
+# Check and install dependencies (Common + Format Specific)
 echo "Checking dependencies..."
 DEPS_TO_INSTALL=""
+# Common dependencies needed for extraction/staging
+COMMON_DEPS="p7zip wget wrestool icotool convert npx"
+# Format specific dependencies
+DEB_DEPS="dpkg-dev"
+APPIMAGE_DEPS="" # Add appimagetool, fuse if needed later
 
-# Check system package dependencies
-# Note: dpkg-deb is now only needed by the sub-script, but checking here ensures it's available if needed later
-# AppImage might need different dependencies (e.g., fuse, appimagetool) - adjust if implementing AppImage
-for cmd in p7zip wget wrestool icotool convert npx dpkg-deb; do
+ALL_DEPS_TO_CHECK="$COMMON_DEPS"
+if [ "$BUILD_FORMAT" = "deb" ]; then
+    ALL_DEPS_TO_CHECK="$ALL_DEPS_TO_CHECK $DEB_DEPS"
+elif [ "$BUILD_FORMAT" = "appimage" ]; then
+    ALL_DEPS_TO_CHECK="$ALL_DEPS_TO_CHECK $APPIMAGE_DEPS"
+fi
+
+for cmd in $ALL_DEPS_TO_CHECK; do
     if ! check_command "$cmd"; then
         case "$cmd" in
-            "p7zip")
-                DEPS_TO_INSTALL="$DEPS_TO_INSTALL p7zip-full"
-                ;;
-            "wget")
-                DEPS_TO_INSTALL="$DEPS_TO_INSTALL wget"
-                ;;
-            "wrestool"|"icotool")
-                DEPS_TO_INSTALL="$DEPS_TO_INSTALL icoutils"
-                ;;
-            "convert")
-                DEPS_TO_INSTALL="$DEPS_TO_INSTALL imagemagick"
-                ;;
-            "npx")
-                DEPS_TO_INSTALL="$DEPS_TO_INSTALL nodejs npm"
-                ;;
-            "dpkg-deb")
-                # Only add dpkg-dev if building a deb
-                if [ "$BUILD_FORMAT" = "1" ]; then
-                    DEPS_TO_INSTALL="$DEPS_TO_INSTALL dpkg-dev"
-                fi
-                ;;
+            "p7zip") DEPS_TO_INSTALL="$DEPS_TO_INSTALL p7zip-full" ;;
+            "wget") DEPS_TO_INSTALL="$DEPS_TO_INSTALL wget" ;;
+            "wrestool"|"icotool") DEPS_TO_INSTALL="$DEPS_TO_INSTALL icoutils" ;;
+            "convert") DEPS_TO_INSTALL="$DEPS_TO_INSTALL imagemagick" ;;
+            "npx") DEPS_TO_INSTALL="$DEPS_TO_INSTALL nodejs npm" ;;
+            "dpkg-deb") DEPS_TO_INSTALL="$DEPS_TO_INSTALL dpkg-dev" ;;
+            # Add cases for AppImage deps if needed
         esac
     fi
 done
@@ -151,7 +168,7 @@ if [ ! -z "$DEPS_TO_INSTALL" ]; then
     echo "System dependencies installed successfully"
 fi
 
-# Check for electron - first local, then global
+# Check for electron - first local, then global (Needed for both formats potentially)
 LOCAL_ELECTRON="" # Initialize variable
 # Check for local electron in node_modules
 if [ -f "$(pwd)/node_modules/.bin/electron" ]; then
@@ -203,14 +220,6 @@ elif ! check_command "electron"; then
         echo "Global electron installed successfully"
     fi
 fi
-
-PACKAGE_NAME="claude-desktop"
-# ARCHITECTURE is set based on detection above
-MAINTAINER="Claude Desktop Linux Maintainers"
-DESCRIPTION="Claude Desktop for Linux"
-# Create working directories
-WORK_DIR="$(pwd)/build" # Top-level build directory
-APP_STAGING_DIR="$WORK_DIR/electron-app" # Staging for app files before packaging
 
 # Clean previous build
 rm -rf "$WORK_DIR"
@@ -417,37 +426,70 @@ echo "✓ app.asar processed and staged in $APP_STAGING_DIR"
 cd .. # Go back from build/electron-app to build/
 cd .. # Go back from build/ to the project root
 
-# --- Call the Debian Packaging Script ---
-# This section only runs if BUILD_FORMAT was "1"
-echo "📦 Calling Debian packaging script for $ARCHITECTURE..."
-# Ensure the script is executable
-chmod +x scripts/build-deb-package.sh
+# --- Call the appropriate packaging script ---
+if [ "$BUILD_FORMAT" = "deb" ]; then
+    echo "📦 Calling Debian packaging script for $ARCHITECTURE..."
+    # Ensure the script is executable
+    chmod +x scripts/build-deb-package.sh
 
-# Execute the script, passing necessary variables including the detected ARCHITECTURE
-scripts/build-deb-package.sh \
-    "$VERSION" \
-    "$ARCHITECTURE" \
-    "$WORK_DIR" \
-    "$APP_STAGING_DIR" \
-    "$PACKAGE_NAME" \
-    "$MAINTAINER" \
-    "$DESCRIPTION"
+    # Execute the script, passing necessary variables including the detected ARCHITECTURE
+    scripts/build-deb-package.sh \
+        "$VERSION" \
+        "$ARCHITECTURE" \
+        "$WORK_DIR" \
+        "$APP_STAGING_DIR" \
+        "$PACKAGE_NAME" \
+        "$MAINTAINER" \
+        "$DESCRIPTION"
 
-# Check the exit code of the packaging script
-if [ $? -ne 0 ]; then
-    echo "❌ Debian packaging script failed."
-    exit 1
-fi
+    # Check the exit code of the packaging script
+    if [ $? -ne 0 ]; then
+        echo "❌ Debian packaging script failed."
+        exit 1
+    fi
 
-# Capture the final deb file path (using the determined ARCHITECTURE)
-# Find the .deb file in the work directory
-DEB_FILE=$(find "$WORK_DIR" -maxdepth 1 -name "${PACKAGE_NAME}_${VERSION}_${ARCHITECTURE}.deb" | head -n 1)
+    # Capture the final deb file path (using the determined ARCHITECTURE)
+    # Find the .deb file in the work directory
+    DEB_FILE=$(find "$WORK_DIR" -maxdepth 1 -name "${PACKAGE_NAME}_${VERSION}_${ARCHITECTURE}.deb" | head -n 1)
 
-echo "✓ Build complete!"
-if [ -n "$DEB_FILE" ] && [ -f "$DEB_FILE" ]; then
-    echo "Package created at: $DEB_FILE"
-else
-    echo "Warning: Could not determine final .deb file path from $WORK_DIR for ${ARCHITECTURE}."
+    echo "✓ Debian Build complete!"
+    if [ -n "$DEB_FILE" ] && [ -f "$DEB_FILE" ]; then
+        echo "Package created at: $DEB_FILE"
+    else
+        echo "Warning: Could not determine final .deb file path from $WORK_DIR for ${ARCHITECTURE}."
+    fi
+
+elif [ "$BUILD_FORMAT" = "appimage" ]; then
+    echo "📦 Calling AppImage packaging script for $ARCHITECTURE..."
+    # Ensure the script is executable
+    chmod +x scripts/build-appimage.sh
+
+    # Execute the script, passing necessary variables
+    scripts/build-appimage.sh \
+        "$VERSION" \
+        "$ARCHITECTURE" \
+        "$WORK_DIR" \
+        "$APP_STAGING_DIR" \
+        "$PACKAGE_NAME" \
+        "$MAINTAINER" \
+        "$DESCRIPTION" # Maintainer/Desc might not be used but passed for consistency
+
+    # Check the exit code of the packaging script
+    if [ $? -ne 0 ]; then
+        echo "❌ AppImage packaging script failed."
+        exit 1
+    fi
+
+    # Capture the final AppImage file path (using the determined ARCHITECTURE)
+    # Find the .AppImage file in the work directory (adjust pattern if needed)
+    APPIMAGE_FILE=$(find "$WORK_DIR" -maxdepth 1 -name "${PACKAGE_NAME}-${VERSION}-${ARCHITECTURE}.AppImage" | head -n 1)
+
+    echo "✓ AppImage Build complete! (Placeholder)"
+    if [ -n "$APPIMAGE_FILE" ] && [ -f "$APPIMAGE_FILE" ]; then
+        echo "Package created at: $APPIMAGE_FILE"
+    else
+        echo "Note: AppImage creation is currently a placeholder."
+    fi
 fi
 
 # Clean up intermediate files (optional, keep for debugging if needed)
