@@ -1,8 +1,27 @@
 #!/bin/bash
 set -e
 
-# Update this URL when a new version of Claude Desktop is released
-CLAUDE_DOWNLOAD_URL="https://storage.googleapis.com/osprey-downloads-c02f6a0d-347c-492b-a752-3e0651722e97/nest-win-x64/Claude-Setup-x64.exe"
+# --- Architecture Detection ---
+echo "⚙️ Detecting system architecture..."
+HOST_ARCH=$(dpkg --print-architecture)
+echo "Detected host architecture: $HOST_ARCH"
+
+if [ "$HOST_ARCH" = "amd64" ]; then
+    CLAUDE_DOWNLOAD_URL="https://storage.googleapis.com/osprey-downloads-c02f6a0d-347c-492b-a752-3e0651722e97/nest-win-x64/Claude-Setup-x64.exe"
+    ARCHITECTURE="amd64"
+    CLAUDE_EXE_FILENAME="Claude-Setup-x64.exe"
+    echo "Configured for amd64 build."
+elif [ "$HOST_ARCH" = "arm64" ]; then
+    CLAUDE_DOWNLOAD_URL="https://storage.googleapis.com/osprey-downloads-c02f6a0d-347c-492b-a752-3e0651722e97/nest-win-arm64/Claude-Setup-arm64.exe"
+    ARCHITECTURE="arm64"
+    CLAUDE_EXE_FILENAME="Claude-Setup-arm64.exe"
+    echo "Configured for arm64 build."
+else
+    echo "❌ Unsupported architecture: $HOST_ARCH. This script currently supports amd64 and arm64."
+    exit 1
+fi
+# --- End Architecture Detection ---
+
 
 # Check for Debian-based system
 if [ ! -f "/etc/debian_version" ]; then
@@ -52,6 +71,7 @@ fi
 echo "System Information:"
 echo "Distribution: $(cat /etc/os-release | grep "PRETTY_NAME" | cut -d'"' -f2)"
 echo "Debian version: $(cat /etc/debian_version)"
+echo "Target Architecture: $ARCHITECTURE" # Display the target architecture
 
 # Function to check if a command exists
 check_command() {
@@ -157,7 +177,7 @@ elif ! check_command "electron"; then
 fi
 
 PACKAGE_NAME="claude-desktop"
-ARCHITECTURE="amd64"
+# ARCHITECTURE is set based on detection above
 MAINTAINER="Claude Desktop Linux Maintainers"
 DESCRIPTION="Claude Desktop for Linux"
 # Create working directories
@@ -175,32 +195,36 @@ if ! npm list -g asar > /dev/null 2>&1; then
     npm install -g asar
 fi
 
-# Download Claude Windows installer
-echo "📥 Downloading Claude Desktop installer..."
-CLAUDE_EXE="$WORK_DIR/Claude-Setup-x64.exe"
-if ! wget -O "$CLAUDE_EXE" "$CLAUDE_DOWNLOAD_URL"; then
-    echo "❌ Failed to download Claude Desktop installer"
+# Download Claude Windows installer for the target architecture
+echo "📥 Downloading Claude Desktop installer for $ARCHITECTURE..."
+CLAUDE_EXE_PATH="$WORK_DIR/$CLAUDE_EXE_FILENAME" # Use the arch-specific filename
+if ! wget -O "$CLAUDE_EXE_PATH" "$CLAUDE_DOWNLOAD_URL"; then
+    echo "❌ Failed to download Claude Desktop installer from $CLAUDE_DOWNLOAD_URL"
     exit 1
 fi
-echo "✓ Download complete"
+echo "✓ Download complete: $CLAUDE_EXE_FILENAME"
 
 # Extract resources
-echo "📦 Extracting resources..."
+echo "📦 Extracting resources from $CLAUDE_EXE_FILENAME..."
 cd "$WORK_DIR"
-if ! 7z x -y "$CLAUDE_EXE"; then
+if ! 7z x -y "$CLAUDE_EXE_PATH"; then # Use the arch-specific path
     echo "❌ Failed to extract installer"
     exit 1
 fi
 
 # Extract nupkg filename and version
+# The nupkg name might differ slightly for arm64, adjust find pattern if needed
+# Assuming it still starts with AnthropicClaude- for now
 NUPKG_PATH=$(find . -name "AnthropicClaude-*.nupkg" | head -1)
 if [ -z "$NUPKG_PATH" ]; then
-    echo "❌ Could not find AnthropicClaude nupkg file"
+    echo "❌ Could not find AnthropicClaude nupkg file in $WORK_DIR"
     exit 1
 fi
+echo "Found nupkg: $NUPKG_PATH"
 
 # Extract version from the nupkg filename (using LC_ALL=C for locale compatibility)
-VERSION=$(echo "$NUPKG_PATH" | LC_ALL=C grep -oP 'AnthropicClaude-\K[0-9]+\.[0-9]+\.[0-9]+(?=-full)')
+# Assuming version format is consistent across architectures
+VERSION=$(echo "$NUPKG_PATH" | LC_ALL=C grep -oP 'AnthropicClaude-\K[0-9]+\.[0-9]+\.[0-9]+(?=-full|-arm64-full)') # Adjusted regex slightly
 if [ -z "$VERSION" ]; then
     echo "❌ Could not extract version from nupkg filename: $NUPKG_PATH"
     exit 1
@@ -214,8 +238,16 @@ fi
 echo "✓ Resources extracted"
 
 # Extract and convert icons (needed by the packaging script later)
-echo "🎨 Processing icons..."
-if ! wrestool -x -t 14 "lib/net45/claude.exe" -o claude.ico; then
+# Assuming claude.exe exists in the extracted structure for both archs
+EXE_RELATIVE_PATH="lib/net45/claude.exe" # Check if this path is correct for arm64 too
+if [ ! -f "$EXE_RELATIVE_PATH" ]; then
+    echo "❌ Cannot find claude.exe at expected path: $EXE_RELATIVE_PATH"
+    # Add alternative path check if needed for arm64
+    # find . -name claude.exe # Uncomment to help debug if needed
+    exit 1
+fi
+echo "🎨 Processing icons from $EXE_RELATIVE_PATH..."
+if ! wrestool -x -t 14 "$EXE_RELATIVE_PATH" -o claude.ico; then
     echo "❌ Failed to extract icons from exe"
     exit 1
 fi
@@ -227,6 +259,7 @@ fi
 echo "✓ Icons processed (will be used by packaging script)"
 
 # Process app.asar
+# Assuming app.asar structure is consistent across architectures
 echo "⚙️ Processing app.asar..."
 cp "lib/net45/resources/app.asar" "$APP_STAGING_DIR/"
 cp -r "lib/net45/resources/app.asar.unpacked" "$APP_STAGING_DIR/"
@@ -263,7 +296,7 @@ const KeyboardKey = {
 Object.freeze(KeyboardKey);
 
 module.exports = {
-  getWindowsVersion: () => "10.0.0",
+  getWindowsVersion: () => "10.0.0", // Keep this generic?
   setWindowEffect: () => {},
   removeWindowEffect: () => {},
   getIsMaximized: () => false,
@@ -357,11 +390,11 @@ cd .. # Go back from build/electron-app to build/
 cd .. # Go back from build/ to the project root
 
 # --- Call the Debian Packaging Script ---
-echo "📦 Calling Debian packaging script..."
+echo "📦 Calling Debian packaging script for $ARCHITECTURE..."
 # Ensure the script is executable
 chmod +x scripts/build-deb-package.sh
 
-# Execute the script, passing necessary variables
+# Execute the script, passing necessary variables including the detected ARCHITECTURE
 scripts/build-deb-package.sh \
     "$VERSION" \
     "$ARCHITECTURE" \
@@ -377,7 +410,7 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 
-# Capture the final deb file path (assuming the script echoes it on the last line of its output)
+# Capture the final deb file path (using the determined ARCHITECTURE)
 # Find the .deb file in the work directory
 DEB_FILE=$(find "$WORK_DIR" -maxdepth 1 -name "${PACKAGE_NAME}_${VERSION}_${ARCHITECTURE}.deb" | head -n 1)
 
@@ -385,7 +418,7 @@ echo "✓ Build complete!"
 if [ -n "$DEB_FILE" ] && [ -f "$DEB_FILE" ]; then
     echo "Package created at: $DEB_FILE"
 else
-    echo "Warning: Could not determine final .deb file path from $WORK_DIR."
+    echo "Warning: Could not determine final .deb file path from $WORK_DIR for ${ARCHITECTURE}."
 fi
 
 # Clean up intermediate files (optional, keep for debugging if needed)
