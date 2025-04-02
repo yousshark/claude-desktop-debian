@@ -69,6 +69,7 @@ echo "Checking dependencies..."
 DEPS_TO_INSTALL=""
 
 # Check system package dependencies
+# Note: dpkg-deb is now only needed by the sub-script, but checking here ensures it's available if needed later
 for cmd in p7zip wget wrestool icotool convert npx dpkg-deb; do
     if ! check_command "$cmd"; then
         case "$cmd" in
@@ -103,6 +104,7 @@ if [ ! -z "$DEPS_TO_INSTALL" ]; then
 fi
 
 # Check for electron - first local, then global
+LOCAL_ELECTRON="" # Initialize variable
 # Check for local electron in node_modules
 if [ -f "$(pwd)/node_modules/.bin/electron" ]; then
     echo "✓ local electron found in node_modules"
@@ -159,18 +161,13 @@ ARCHITECTURE="amd64"
 MAINTAINER="Claude Desktop Linux Maintainers"
 DESCRIPTION="Claude Desktop for Linux"
 # Create working directories
-WORK_DIR="$(pwd)/build"
-DEB_ROOT="$WORK_DIR/deb-package"
-INSTALL_DIR="$DEB_ROOT/usr"
+WORK_DIR="$(pwd)/build" # Top-level build directory
+APP_STAGING_DIR="$WORK_DIR/electron-app" # Staging for app files before packaging
 
 # Clean previous build
 rm -rf "$WORK_DIR"
 mkdir -p "$WORK_DIR"
-mkdir -p "$DEB_ROOT/DEBIAN"
-mkdir -p "$INSTALL_DIR/lib/$PACKAGE_NAME"
-mkdir -p "$INSTALL_DIR/share/applications"
-mkdir -p "$INSTALL_DIR/share/icons"
-mkdir -p "$INSTALL_DIR/bin"
+mkdir -p "$APP_STAGING_DIR" # Create the app staging directory explicitly
 
 # Install asar if needed
 if ! npm list -g asar > /dev/null 2>&1; then
@@ -216,7 +213,7 @@ if ! 7z x -y "$NUPKG_PATH"; then
 fi
 echo "✓ Resources extracted"
 
-# Extract and convert icons
+# Extract and convert icons (needed by the packaging script later)
 echo "🎨 Processing icons..."
 if ! wrestool -x -t 14 "lib/net45/claude.exe" -o claude.ico; then
     echo "❌ Failed to extract icons from exe"
@@ -227,36 +224,14 @@ if ! icotool -x claude.ico; then
     echo "❌ Failed to convert icons"
     exit 1
 fi
-echo "✓ Icons processed"
-
-# Map icon sizes to their corresponding extracted files
-declare -A icon_files=(
-    ["16"]="claude_13_16x16x32.png"
-    ["24"]="claude_11_24x24x32.png"
-    ["32"]="claude_10_32x32x32.png"
-    ["48"]="claude_8_48x48x32.png"
-    ["64"]="claude_7_64x64x32.png"
-    ["256"]="claude_6_256x256x32.png"
-)
-
-# Install icons
-for size in 16 24 32 48 64 256; do
-    icon_dir="$INSTALL_DIR/share/icons/hicolor/${size}x${size}/apps"
-    mkdir -p "$icon_dir"
-    if [ -f "${icon_files[$size]}" ]; then
-        echo "Installing ${size}x${size} icon..."
-        install -Dm 644 "${icon_files[$size]}" "$icon_dir/claude-desktop.png"
-    else
-        echo "Warning: Missing ${size}x${size} icon"
-    fi
-done
+echo "✓ Icons processed (will be used by packaging script)"
 
 # Process app.asar
-mkdir -p electron-app
-cp "lib/net45/resources/app.asar" electron-app/
-cp -r "lib/net45/resources/app.asar.unpacked" electron-app/
+echo "⚙️ Processing app.asar..."
+cp "lib/net45/resources/app.asar" "$APP_STAGING_DIR/"
+cp -r "lib/net45/resources/app.asar.unpacked" "$APP_STAGING_DIR/"
 
-cd "$WORK_DIR/electron-app"
+cd "$APP_STAGING_DIR"
 npx asar extract app.asar app.asar.contents
 
 # Replace native module with stub implementation
@@ -319,9 +294,9 @@ cd ..
 # Repackage app.asar
 npx asar pack app.asar.contents app.asar
 
-# Create native module with keyboard constants
-mkdir -p "$INSTALL_DIR/lib/$PACKAGE_NAME/app.asar.unpacked/node_modules/claude-native"
-cat > "$INSTALL_DIR/lib/$PACKAGE_NAME/app.asar.unpacked/node_modules/claude-native/index.js" << EOF
+# Create native module stub within the staging area's unpacked directory
+mkdir -p "$APP_STAGING_DIR/app.asar.unpacked/node_modules/claude-native"
+cat > "$APP_STAGING_DIR/app.asar.unpacked/node_modules/claude-native/index.js" << EOF
 // Stub implementation of claude-native using KeyboardKey enum values
 const KeyboardKey = {
   Backspace: 43,
@@ -363,147 +338,58 @@ module.exports = {
 };
 EOF
 
-# Copy app files
-cp app.asar "$INSTALL_DIR/lib/$PACKAGE_NAME/"
-cp -r app.asar.unpacked "$INSTALL_DIR/lib/$PACKAGE_NAME/"
-
 # Copy local electron if available
 if [ ! -z "$LOCAL_ELECTRON" ]; then
-    echo "Copying local electron to package..."
-    cp -r "$(dirname "$LOCAL_ELECTRON")/.." "$INSTALL_DIR/lib/$PACKAGE_NAME/node_modules/"
+    echo "Copying local electron to staging area..."
+    # Ensure the target node_modules directory exists in staging
+    mkdir -p "$APP_STAGING_DIR/node_modules"
+    # Copy the entire electron module directory
+    # Go up one level from the binary path to get the module root
+    ELECTRON_MODULE_PATH=$(dirname "$LOCAL_ELECTRON")/..
+    echo "Copying from $ELECTRON_MODULE_PATH to $APP_STAGING_DIR/node_modules/"
+    cp -r "$ELECTRON_MODULE_PATH" "$APP_STAGING_DIR/node_modules/"
+fi
+echo "✓ app.asar processed and staged in $APP_STAGING_DIR"
+
+# Return to the original directory (project root) before calling the packaging script
+# We were in $APP_STAGING_DIR which is $WORK_DIR/electron-app
+cd .. # Go back from build/electron-app to build/
+cd .. # Go back from build/ to the project root
+
+# --- Call the Debian Packaging Script ---
+echo "📦 Calling Debian packaging script..."
+# Ensure the script is executable
+chmod +x scripts/build-deb-package.sh
+
+# Execute the script, passing necessary variables
+scripts/build-deb-package.sh \
+    "$VERSION" \
+    "$ARCHITECTURE" \
+    "$WORK_DIR" \
+    "$APP_STAGING_DIR" \
+    "$PACKAGE_NAME" \
+    "$MAINTAINER" \
+    "$DESCRIPTION"
+
+# Check the exit code of the packaging script
+if [ $? -ne 0 ]; then
+    echo "❌ Debian packaging script failed."
+    exit 1
 fi
 
-# Create desktop entry
-cat > "$INSTALL_DIR/share/applications/claude-desktop.desktop" << EOF
-[Desktop Entry]
-Name=Claude
-Exec=/usr/bin/claude-desktop %u
-Icon=claude-desktop
-Type=Application
-Terminal=false
-Categories=Office;Utility;
-MimeType=x-scheme-handler/claude;
-StartupWMClass=Claude
-EOF
+# Capture the final deb file path (assuming the script echoes it on the last line of its output)
+# Find the .deb file in the work directory
+DEB_FILE=$(find "$WORK_DIR" -maxdepth 1 -name "${PACKAGE_NAME}_${VERSION}_${ARCHITECTURE}.deb" | head -n 1)
 
-# Create launcher script with Wayland flags and logging
-cat > "$INSTALL_DIR/bin/claude-desktop" << EOF
-#!/bin/bash
-LOG_FILE="\$HOME/claude-desktop-launcher.log"
-echo "--- Claude Desktop Launcher Start ---" >> "\$LOG_FILE"
-echo "Timestamp: \$(date)" >> "\$LOG_FILE"
-echo "Arguments: \$@" >> "\$LOG_FILE"
-
-# Detect if Wayland is likely running
-IS_WAYLAND=false
-if [ ! -z "\$WAYLAND_DISPLAY" ]; then
-  IS_WAYLAND=true
-  echo "Wayland detected" >> "\$LOG_FILE"
-fi
-
-# Determine Electron executable path
-ELECTRON_EXEC="electron" # Default to global
-LOCAL_ELECTRON_PATH="/usr/lib/claude-desktop/node_modules/.bin/electron"
-if [ -f "\$LOCAL_ELECTRON_PATH" ]; then
-    ELECTRON_EXEC="\$LOCAL_ELECTRON_PATH"
-    echo "Using local Electron: \$ELECTRON_EXEC" >> "\$LOG_FILE"
+echo "✓ Build complete!"
+if [ -n "$DEB_FILE" ] && [ -f "$DEB_FILE" ]; then
+    echo "Package created at: $DEB_FILE"
 else
-    echo "Using global Electron: \$ELECTRON_EXEC" >> "\$LOG_FILE"
+    echo "Warning: Could not determine final .deb file path from $WORK_DIR."
 fi
 
-# Base command arguments array, starting with app path
-APP_PATH="/usr/lib/claude-desktop/app.asar"
-ELECTRON_ARGS=("\$APP_PATH")
-
-# Add Wayland flags if Wayland is detected
-if [ "\$IS_WAYLAND" = true ]; then
-  echo "Adding Wayland flags" >> "\$LOG_FILE"
-  ELECTRON_ARGS+=("--enable-features=UseOzonePlatform,WaylandWindowDecorations" "--ozone-platform=wayland")
-fi
-
-# Change to the application directory
-echo "Changing directory to /usr/lib/claude-desktop" >> "\$LOG_FILE"
-cd /usr/lib/claude-desktop || { echo "Failed to cd to /usr/lib/claude-desktop" >> "\$LOG_FILE"; exit 1; }
-
-# Execute Electron with app path, flags, and script arguments
-# Redirect stdout and stderr to the log file
-FINAL_CMD="\"\$ELECTRON_EXEC\" \"\${ELECTRON_ARGS[@]}\" \"\$@\""
-echo "Executing: \$FINAL_CMD" >> "\$LOG_FILE"
-"\$ELECTRON_EXEC" "\${ELECTRON_ARGS[@]}" "\$@" >> "\$LOG_FILE" 2>&1
-EXIT_CODE=\$?
-echo "Electron exited with code: \$EXIT_CODE" >> "\$LOG_FILE"
-echo "--- Claude Desktop Launcher End ---" >> "\$LOG_FILE"
-exit \$EXIT_CODE
-EOF
-chmod +x "$INSTALL_DIR/bin/claude-desktop"
-
-# Create control file
-cat > "$DEB_ROOT/DEBIAN/control" << EOF
-Package: claude-desktop
-Version: $VERSION
-Architecture: $ARCHITECTURE
-Maintainer: $MAINTAINER
-Depends: nodejs, npm, p7zip-full
-Description: $DESCRIPTION
- Claude is an AI assistant from Anthropic.
- This package provides the desktop interface for Claude.
- .
- Supported on Debian-based Linux distributions (Debian, Ubuntu, Linux Mint, MX Linux, etc.)
- Requires: nodejs (>= 12.0.0), npm
-EOF
-
-# Create postinst script
-echo "Creating postinst script..."
-cat > "$DEB_ROOT/DEBIAN/postinst" << EOF
-#!/bin/sh
-set -e
-
-# Update desktop database for MIME types
-echo "Updating desktop database..."
-update-desktop-database /usr/share/applications &> /dev/null || true
-
-# Set correct permissions for chrome-sandbox
-echo "Setting chrome-sandbox permissions..."
-SANDBOX_PATH=""
-# Check for sandbox in locally packaged electron first
-if [ -f "/usr/lib/claude-desktop/node_modules/electron/dist/chrome-sandbox" ]; then
-    SANDBOX_PATH="/usr/lib/claude-desktop/node_modules/electron/dist/chrome-sandbox"
-# If not found, try to find it in the path of the globally installed electron
-elif command -v electron >/dev/null 2>&1; then
-    ELECTRON_PATH=\$(command -v electron)
-    # Try to find sandbox relative to the electron binary path
-    POTENTIAL_SANDBOX="\$(dirname "\$ELECTRON_PATH")/../lib/node_modules/electron/dist/chrome-sandbox"
-    if [ -f "\$POTENTIAL_SANDBOX" ]; then
-        SANDBOX_PATH="\$POTENTIAL_SANDBOX"
-    fi
-fi
-
-if [ -n "\$SANDBOX_PATH" ] && [ -f "\$SANDBOX_PATH" ]; then
-    echo "Found chrome-sandbox at: \$SANDBOX_PATH"
-    chown root:root "\$SANDBOX_PATH" || echo "Warning: Failed to chown chrome-sandbox"
-    chmod 4755 "\$SANDBOX_PATH" || echo "Warning: Failed to chmod chrome-sandbox"
-    echo "Permissions set for \$SANDBOX_PATH"
-else
-    echo "Warning: chrome-sandbox binary not found. Sandbox may not function correctly."
-fi
+# Clean up intermediate files (optional, keep for debugging if needed)
+# echo "🧹 Cleaning up intermediate files..."
+# rm -rf "$WORK_DIR/lib" "$WORK_DIR/claude.ico" "$WORK_DIR"/*.png "$WORK_DIR/electron-app" "$WORK_DIR/package" "$WORK_DIR/RELEASES" "$WORK_DIR/Setup.exe" "$WORK_DIR/Setup.msi" "$WORK_DIR"/*.nupkg
 
 exit 0
-EOF
-chmod +x "$DEB_ROOT/DEBIAN/postinst"
-
-# Build .deb package
-echo "🖹 Building .deb package..."
-DEB_FILE="$WORK_DIR/claude-desktop_${VERSION}_${ARCHITECTURE}.deb"
-
-if ! dpkg-deb --build "$DEB_ROOT" "$DEB_FILE"; then
-    echo "❌ Failed to build .deb package"
-    exit 1
-fi
-
-if [ -f "$DEB_FILE" ]; then
-    echo "✓ Package built successfully at: $DEB_FILE"
-    echo "🎉 Done! You can now install the package with: sudo dpkg -i $DEB_FILE"
-else
-    echo "❌ Package file not found at expected location: $DEB_FILE"
-    exit 1
-fi
