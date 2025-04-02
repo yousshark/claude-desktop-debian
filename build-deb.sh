@@ -73,6 +73,30 @@ echo "Distribution: $(cat /etc/os-release | grep "PRETTY_NAME" | cut -d'"' -f2)"
 echo "Debian version: $(cat /etc/debian_version)"
 echo "Target Architecture: $ARCHITECTURE" # Display the target architecture
 
+# --- Build Format Selection ---
+# Function to display the menu
+display_menu() {
+    clear
+    echo -e "\n\033[1;34m====== Select Build Format ======\033[0m"
+    echo -e "\033[1;32m  [1] Debian Package (.deb)\033[0m"
+    echo -e "\033[1;32m  [2] AppImage       (.AppImage)\033[0m"
+    echo -e "\033[1;34m=================================\033[0m"
+}
+
+while true; do
+    display_menu
+    read -n 1 -p $'\nEnter choice (1 or 2, any other key to cancel): ' BUILD_FORMAT
+    echo 
+
+    case $BUILD_FORMAT in
+        "1") echo -e "\033[1;36m✔ You selected Debian Package (.deb)\033[0m"; break ;;
+        "2") echo -e "\033[1;36m✔ You selected AppImage (.AppImage)\033[0m"; exit 0 ;;
+        *) echo -e "\033[1;31m✖ Cancelled.\033[0m"; exit 1 ;;
+    esac
+done
+# --- End Build Format Selection ---
+
+
 # Function to check if a command exists
 check_command() {
     if ! command -v "$1" &> /dev/null; then
@@ -90,6 +114,7 @@ DEPS_TO_INSTALL=""
 
 # Check system package dependencies
 # Note: dpkg-deb is now only needed by the sub-script, but checking here ensures it's available if needed later
+# AppImage might need different dependencies (e.g., fuse, appimagetool) - adjust if implementing AppImage
 for cmd in p7zip wget wrestool icotool convert npx dpkg-deb; do
     if ! check_command "$cmd"; then
         case "$cmd" in
@@ -109,7 +134,10 @@ for cmd in p7zip wget wrestool icotool convert npx dpkg-deb; do
                 DEPS_TO_INSTALL="$DEPS_TO_INSTALL nodejs npm"
                 ;;
             "dpkg-deb")
-                DEPS_TO_INSTALL="$DEPS_TO_INSTALL dpkg-dev"
+                # Only add dpkg-dev if building a deb
+                if [ "$BUILD_FORMAT" = "1" ]; then
+                    DEPS_TO_INSTALL="$DEPS_TO_INSTALL dpkg-dev"
+                fi
                 ;;
         esac
     fi
@@ -390,6 +418,7 @@ cd .. # Go back from build/electron-app to build/
 cd .. # Go back from build/ to the project root
 
 # --- Call the Debian Packaging Script ---
+# This section only runs if BUILD_FORMAT was "1"
 echo "📦 Calling Debian packaging script for $ARCHITECTURE..."
 # Ensure the script is executable
 chmod +x scripts/build-deb-package.sh
