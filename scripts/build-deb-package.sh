@@ -153,10 +153,8 @@ echo "✓ Launcher script created"
 echo "📄 Creating control file..."
 # Determine dependencies based on whether electron was packaged
 DEPENDS="nodejs, npm, p7zip-full" # Base dependencies
-if [ ! -d "$INSTALL_DIR/lib/$PACKAGE_NAME/node_modules/electron" ]; then
-    DEPENDS="$DEPENDS, electron" # Add electron if not packaged locally
-    echo "Adding 'electron' to Depends list as it was not packaged locally."
-fi
+# Electron is now always packaged locally, so it's not listed as an external dependency.
+echo "Electron is packaged locally; not adding to external Depends list."
 
 cat > "$PACKAGE_ROOT/DEBIAN/control" << EOF
 Package: $PACKAGE_NAME
@@ -186,23 +184,10 @@ update-desktop-database /usr/share/applications &> /dev/null || true
 # Set correct permissions for chrome-sandbox if electron is installed globally or locally packaged
 echo "Setting chrome-sandbox permissions..."
 SANDBOX_PATH=""
-# Check for sandbox in locally packaged electron first
+# Electron is always packaged locally now, so only check the local path.
 LOCAL_SANDBOX_PATH="/usr/lib/$PACKAGE_NAME/node_modules/electron/dist/chrome-sandbox"
 if [ -f "\$LOCAL_SANDBOX_PATH" ]; then
     SANDBOX_PATH="\$LOCAL_SANDBOX_PATH"
-# If not found locally, try to find it in the path of the globally installed electron
-elif command -v electron >/dev/null 2>&1; then
-    ELECTRON_PATH=\$(command -v electron)
-    # Try to find sandbox relative to the electron binary path
-    # Common locations: ../lib/node_modules/electron/dist/ or directly beside electron binary
-    POTENTIAL_SANDBOX_1="\$(dirname "\$ELECTRON_PATH")/../lib/node_modules/electron/dist/chrome-sandbox"
-    POTENTIAL_SANDBOX_2="\$(dirname "\$ELECTRON_PATH")/chrome-sandbox"
-
-    if [ -f "\$POTENTIAL_SANDBOX_1" ]; then
-        SANDBOX_PATH="\$POTENTIAL_SANDBOX_1"
-    elif [ -f "\$POTENTIAL_SANDBOX_2" ]; then
-        SANDBOX_PATH="\$POTENTIAL_SANDBOX_2"
-    fi
 fi
 
 if [ -n "\$SANDBOX_PATH" ] && [ -f "\$SANDBOX_PATH" ]; then
@@ -211,7 +196,7 @@ if [ -n "\$SANDBOX_PATH" ] && [ -f "\$SANDBOX_PATH" ]; then
     chmod 4755 "\$SANDBOX_PATH" || echo "Warning: Failed to chmod chrome-sandbox"
     echo "Permissions set for \$SANDBOX_PATH"
 else
-    echo "Warning: chrome-sandbox binary not found (checked local package and global path). Sandbox may not function correctly."
+    echo "Warning: chrome-sandbox binary not found in local package at \$LOCAL_SANDBOX_PATH. Sandbox may not function correctly."
 fi
 
 exit 0
