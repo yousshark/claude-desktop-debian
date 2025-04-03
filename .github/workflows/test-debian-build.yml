@@ -28,7 +28,7 @@ jobs:
     - name: Run Debian build script
       # GitHub Actions runners provide passwordless sudo
       # Use --noprogressbar for cleaner logs if apt commands support it
-      run: echo "1\n1" | sudo ./build.sh
+      run: echo -e "1\n1" | sudo ./build.sh
 
     - name: Upload Debian package artifact
       # This step runs even if the previous step fails, change 'always()' if needed
