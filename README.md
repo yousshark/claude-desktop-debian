@@ -164,7 +164,7 @@ For NixOS users, please refer to [k3d3's claude-desktop-linux-flake](https://git
 
 # Emsi's Alternative Debian Implementation
 
-Emsi has put together a fork of this repo at [https://github.com/emsi/claude-desktop](https://github.com/emsi/claude-desktop). Aside from approaching the problem much more intelligently than I, his repo collection is full of goodies such as [https://github.com/emsi/MyManus](https://github.com/emsi/MyManus). This repo currently relies on his title bar fix to keep the main title bar visible.
+Emsi has put together a fork of this repo at [https://github.com/emsi/claude-desktop](https://github.com/emsi/claude-desktop). Aside from approaching the problem much more intelligently than I, his repo collection is full of goodies such as [https://github.com/emsi/MyManus](https://github.com/emsi/MyManus). This repo (aaddrick/claude-desktop-debian) currently relies on his title bar fix to keep the main title bar visible.
 
 # License
 
