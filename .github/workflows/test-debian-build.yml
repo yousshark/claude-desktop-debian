@@ -4,7 +4,7 @@ on:
   push:
     # No branches filter = trigger on any branch push
     paths:
-      - 'build-deb.sh'
+      - 'build.sh'
       - '.github/workflows/test-debian-build.yml'
   workflow_dispatch: # Allows manual triggering from the Actions tab on GitHub (uses the selected branch context)
 
@@ -23,12 +23,12 @@ jobs:
     #     node-version: '18' # Example version
 
     - name: Make build script executable
-      run: chmod +x ./build-deb.sh
+      run: chmod +x ./build.sh
 
     - name: Run Debian build script
       # GitHub Actions runners provide passwordless sudo
       # Use --noprogressbar for cleaner logs if apt commands support it
-      run: sudo ./build-deb.sh
+      run: sudo ./build.sh
 
     - name: Upload Debian package artifact
       # This step runs even if the previous step fails, change 'always()' if needed
