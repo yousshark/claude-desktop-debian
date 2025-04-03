@@ -125,7 +125,6 @@ while true; do
     esac
 done
 echo "-------------------------------------" # Add separator after selection/before next steps
-echo -e "\033[1;36m--- End Build Format Selection ---\033[0m"
 # --- Cleanup Selection ---
 echo -e "\033[1;36m--- Cleanup Selection ---\033[0m"
 PERFORM_CLEANUP=false # Default to keeping files
