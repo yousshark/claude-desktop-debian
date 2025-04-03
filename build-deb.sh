@@ -139,7 +139,7 @@ display_cleanup_menu() {
 CLEANUP_CHOICE=""
 while true; do
     display_cleanup_menu
-    read -n 1 -p $'\nEnter choice (1 or 2, any other key to cancel prompt): ' CLEANUP_CHOICE
+    read -n 1 -p $'\nEnter choice (1 or 2, any other key defaults to "No".): ' CLEANUP_CHOICE
     echo
 
     case $CLEANUP_CHOICE in
@@ -531,7 +531,7 @@ if [ "$BUILD_FORMAT" = "deb" ]; then
     if [ "$FINAL_OUTPUT_PATH" != "Not Found" ] && [ -e "$FINAL_OUTPUT_PATH" ]; then
         echo -e "📦 To install the Debian package, run:"
         echo -e "   \033[1;32msudo apt install $FINAL_OUTPUT_PATH\033[0m"
-        echo -e "   (or \`sudo dpkg -i $FINAL_OUTPUT_PATH\` followed by \`sudo apt --fix-broken install\` if dependencies are needed)"
+        echo -e "   (or \`sudo dpkg -i $FINAL_OUTPUT_PATH\`)"
     else
         echo -e "⚠️ Debian package file not found. Cannot provide installation instructions."
     fi
@@ -543,7 +543,7 @@ elif [ "$BUILD_FORMAT" = "appimage" ]; then
         echo -e "\n🚀 To install AppImageLauncher (v2.2.0 for amd64):"
         echo -e "   1. Download:"
         echo -e "      \033[1;32mwget https://github.com/TheAssassin/AppImageLauncher/releases/download/v2.2.0/appimagelauncher_2.2.0-travis995.0f91801.bionic_amd64.deb -O /tmp/appimagelauncher.deb\033[0m"
-        echo -e "      or appropriate package from here: https://github.com/TheAssassin/AppImageLauncher/releases/latest"
+        echo -e "       - or appropriate package from here: \033[1;34mhttps://github.com/TheAssassin/AppImageLauncher/releases/latest\033[0m"
         echo -e "   2. Install the package:"
         echo -e "      \033[1;32msudo dpkg -i /tmp/appimagelauncher.deb\033[0m"
         echo -e "   3. Fix any missing dependencies:"
