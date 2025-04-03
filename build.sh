@@ -1,11 +1,13 @@
 #!/bin/bash
-set -e
+set -euo pipefail
 
 # --- Architecture Detection ---
 echo -e "\033[1;36m--- Architecture Detection ---\033[0m"
 echo "⚙️ Detecting system architecture..."
 HOST_ARCH=$(dpkg --print-architecture)
 echo "Detected host architecture: $HOST_ARCH"
+
+cat /etc/os-release && uname -m && dpkg --print-architecture
 
 if [ "$HOST_ARCH" = "amd64" ]; then
     CLAUDE_DOWNLOAD_URL="https://storage.googleapis.com/osprey-downloads-c02f6a0d-347c-492b-a752-3e0651722e97/nest-win-x64/Claude-Setup-x64.exe"
@@ -89,80 +91,67 @@ WORK_DIR="$PROJECT_ROOT/build" # Top-level build directory
 APP_STAGING_DIR="$WORK_DIR/electron-app" # Staging for app files before packaging
 VERSION="" # Will be determined after download
 
-# --- Build Format Selection ---
-echo -e "\033[1;36m--- Build Format Selection ---\033[0m"
-# Function to display the menu
-display_menu() {
-    clear
-    echo -e "\n\033[1;34m====== Select Build Format ======\033[0m"
-    echo -e "\033[1;32m  [1] Debian Package (.deb)\033[0m"
-    echo -e "\033[1;32m  [2] AppImage       (.AppImage)\033[0m"
-    echo -e "\033[1;34m=================================\033[0m"
-}
+# --- Argument Parsing ---
+echo -e "\033[1;36m--- Argument Parsing ---\033[0m"
+BUILD_FORMAT="deb"    # Default build format
+CLEANUP_ACTION="yes"  # Default cleanup action ('yes' or 'no')
 
-BUILD_FORMAT=""
-while true; do
-    display_menu
-    read -n 1 -p $'\nEnter choice (1 or 2, any other key to cancel): ' BUILD_FORMAT_CHOICE
-    echo
-
-    case $BUILD_FORMAT_CHOICE in
-        "1")
-            echo -e "\033[1;36m✔ You selected Debian Package (.deb)\033[0m"
-            BUILD_FORMAT="deb"
-            break
-            ;;
-        "2")
-            echo -e "\033[1;36m✔ You selected AppImage (.AppImage)\033[0m"
-            BUILD_FORMAT="appimage"
-            break
-            ;;
-        *)
-            echo # Add newline for clarity
-            echo -e "\033[1;31m✖ Cancelled.\033[0m"
-            exit 1
-            ;;
+# Parse command-line arguments
+while [[ $# -gt 0 ]]; do
+    key="$1"
+    case $key in
+        -b|--build)
+        if [[ -z "$2" || "$2" == -* ]]; then # Check if value is missing or is another option
+             echo "❌ Error: Argument for $1 is missing" >&2; exit 1
+        fi
+        BUILD_FORMAT="$2"
+        shift # past argument
+        shift # past value
+        ;;
+        -c|--clean)
+        if [[ -z "$2" || "$2" == -* ]]; then # Check if value is missing or is another option
+             echo "❌ Error: Argument for $1 is missing" >&2; exit 1
+        fi
+        CLEANUP_ACTION="$2"
+        shift # past argument
+        shift # past value
+        ;;
+        -h|--help)
+        echo "Usage: $0 [--build deb|appimage] [--clean yes|no]"
+        echo "  --build: Specify the build format (deb or appimage). Default: deb"
+        echo "  --clean: Specify whether to clean intermediate build files (yes or no). Default: yes"
+        exit 0
+        ;;
+        *)    # unknown option
+        echo "❌ Unknown option: $1" >&2
+        echo "Use -h or --help for usage information." >&2
+        exit 1
+        ;;
     esac
 done
-echo "-------------------------------------" # Add separator after selection/before next steps
-# --- Cleanup Selection ---
-echo -e "\033[1;36m--- Cleanup Selection ---\033[0m"
-PERFORM_CLEANUP=false # Default to keeping files
-display_cleanup_menu() {
-    echo -e "\n\033[1;34m====== Cleanup Build Files ======\033[0m"
-    echo -e "This refers to the intermediate files created in the '$WORK_DIR' directory."
-    echo -e "\033[1;32m  [1] Yes, remove intermediate build files after completion\033[0m"
-    echo -e "\033[1;32m  [2] No, keep intermediate build files\033[0m"
-    echo -e "\033[1;34m=================================\033[0m"
-}
 
-CLEANUP_CHOICE=""
-while true; do
-    display_cleanup_menu
-    read -n 1 -p $'\nEnter choice (1 or 2, any other key defaults to "No".): ' CLEANUP_CHOICE
-    echo
+# Validate arguments
+BUILD_FORMAT=$(echo "$BUILD_FORMAT" | tr '[:upper:]' '[:lower:]') # Convert to lowercase
+CLEANUP_ACTION=$(echo "$CLEANUP_ACTION" | tr '[:upper:]' '[:lower:]') # Convert to lowercase
 
-    case $CLEANUP_CHOICE in
-        "1")
-            echo -e "\033[1;36m✔ Intermediate build files will be removed upon completion.\033[0m"
-            PERFORM_CLEANUP=true
-            break
-            ;;
-        "2")
-            echo -e "\033[1;36m✔ Intermediate build files will be kept.\033[0m"
-            PERFORM_CLEANUP=false
-            break
-            ;;
-        *)
-            echo # Add newline for clarity
-            echo -e "\033[1;33m⚠ Skipping cleanup decision. Build files will be kept.\033[0m"
-            PERFORM_CLEANUP=false # Default to keeping files
-            break
-            ;;
-    esac
-done
-echo "-------------------------------------"
-echo -e "\033[1;36m--- End Cleanup Selection ---\033[0m"
+if [[ "$BUILD_FORMAT" != "deb" && "$BUILD_FORMAT" != "appimage" ]]; then
+    echo "❌ Invalid build format specified: '$BUILD_FORMAT'. Must be 'deb' or 'appimage'." >&2
+    exit 1
+fi
+if [[ "$CLEANUP_ACTION" != "yes" && "$CLEANUP_ACTION" != "no" ]]; then
+    echo "❌ Invalid cleanup option specified: '$CLEANUP_ACTION'. Must be 'yes' or 'no'." >&2
+    exit 1
+fi
+
+echo "Selected build format: $BUILD_FORMAT"
+echo "Cleanup intermediate files: $CLEANUP_ACTION"
+
+# Convert CLEANUP_ACTION to boolean for existing logic compatibility
+PERFORM_CLEANUP=false
+if [ "$CLEANUP_ACTION" = "yes" ]; then
+    PERFORM_CLEANUP=true
+fi
+echo -e "\033[1;36m--- End Argument Parsing ---\033[0m"
 
 
 # Function to check if a command exists
@@ -509,7 +498,7 @@ fi
 
 # --- Cleanup ---
 echo -e "\033[1;36m--- Cleanup ---\033[0m"
-if [ "$PERFORM_CLEANUP" = true ]; then
+if [ "$PERFORM_CLEANUP" = true ]; then # This variable is now set based on the --clean flag
     echo "🧹 Cleaning up intermediate build files in $WORK_DIR..."
     # Simply remove the entire WORK_DIR, as final files are moved out
     if rm -rf "$WORK_DIR"; then

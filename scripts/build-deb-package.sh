@@ -101,7 +101,7 @@ fi
 
 # Determine Electron executable path
 ELECTRON_EXEC="electron" # Default to global
-LOCAL_ELECTRON_PATH="/usr/lib/$PACKAGE_NAME/node_modules/.bin/electron"
+LOCAL_ELECTRON_PATH="/usr/lib/$PACKAGE_NAME/node_modules/electron/dist/electron" # Correct path to executable
 if [ -f "\$LOCAL_ELECTRON_PATH" ]; then
     ELECTRON_EXEC="\$LOCAL_ELECTRON_PATH"
     echo "Using local Electron: \$ELECTRON_EXEC" >> "\$LOG_FILE"
@@ -110,7 +110,7 @@ else
     if command -v electron &> /dev/null; then
         echo "Using global Electron: \$ELECTRON_EXEC" >> "\$LOG_FILE"
     else
-        echo "Error: Electron executable not found (checked local \$LOCAL_ELECTRON_PATH and global path)." >> "\$LOG_FILE"
+        echo "Error: Electron executable not found (checked local \$LOCAL_ELECTRON_PATH and global path)." >> "\$LOG_FILE" # Log the correct path checked
         # Optionally, display an error to the user via zenity or kdialog if available
         if command -v zenity &> /dev/null; then
             zenity --error --text="Claude Desktop cannot start because the Electron framework is missing. Please ensure Electron is installed globally or reinstall Claude Desktop."
@@ -185,7 +185,7 @@ update-desktop-database /usr/share/applications &> /dev/null || true
 echo "Setting chrome-sandbox permissions..."
 SANDBOX_PATH=""
 # Electron is always packaged locally now, so only check the local path.
-LOCAL_SANDBOX_PATH="/usr/lib/$PACKAGE_NAME/node_modules/electron/dist/chrome-sandbox"
+LOCAL_SANDBOX_PATH="/usr/lib/$PACKAGE_NAME/node_modules/electron/dist/chrome-sandbox" # Correct path to sandbox
 if [ -f "\$LOCAL_SANDBOX_PATH" ]; then
     SANDBOX_PATH="\$LOCAL_SANDBOX_PATH"
 fi
@@ -196,7 +196,7 @@ if [ -n "\$SANDBOX_PATH" ] && [ -f "\$SANDBOX_PATH" ]; then
     chmod 4755 "\$SANDBOX_PATH" || echo "Warning: Failed to chmod chrome-sandbox"
     echo "Permissions set for \$SANDBOX_PATH"
 else
-    echo "Warning: chrome-sandbox binary not found in local package at \$LOCAL_SANDBOX_PATH. Sandbox may not function correctly."
+    echo "Warning: chrome-sandbox binary not found in local package at \$LOCAL_SANDBOX_PATH. Sandbox may not function correctly." # Log the correct path checked
 fi
 
 exit 0

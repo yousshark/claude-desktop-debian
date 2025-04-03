@@ -1,6 +1,6 @@
 **Arch Linux users:** For the PKGBUILD and Arch-specific instructions: [https://github.com/aaddrick/claude-desktop-arch](https://github.com/aaddrick/claude-desktop-arch)
 
-Install script will now prompt if you'd like a deb package or an appimage output.
+The build script now uses command-line flags to select the output format and cleanup behavior.
 
 ***THIS IS AN UNOFFICIAL BUILD SCRIPT FOR DEBIAN/UBUNTU BASED SYSTEMS (produces .deb or .AppImage)!***
 
@@ -24,22 +24,28 @@ Supports the Tray menu! (Screenshot of running on KDE)
 
 # Building & Installation (Debian/Ubuntu based)
 
-For Debian-based distributions (Debian, Ubuntu, Linux Mint, MX Linux, etc.), you can build Claude Desktop using the provided build script. The script will prompt you to choose between creating a Debian package (`.deb`) or an AppImage (`.AppImage`).
+For Debian-based distributions (Debian, Ubuntu, Linux Mint, MX Linux, etc.), you can build Claude Desktop using the provided build script. Use command-line flags to specify the desired output format (`.deb` or `.AppImage`) and whether to clean up intermediate build files.
 
 ```bash
 # Clone this repository
 git clone https://github.com/aaddrick/claude-desktop-debian.git
 cd claude-desktop-debian
 
-# Build the package (You will be prompted to choose .deb or .AppImage)
-sudo ./build.sh 
+# Build the package (Defaults to .deb and cleans build files)
+sudo ./build.sh
+
+# Example: Build an AppImage and keep intermediate files
+sudo ./build.sh --build appimage --clean no
+
+# Example: Build a .deb (explicitly) and clean intermediate files (default)
+sudo ./build.sh --build deb --clean yes
 ```
 
 The script will automatically:
  - Check for and install required dependencies
  - Download and extract resources from the Windows version
  - Create a proper Debian package or AppImage
- - Guide you through the process
+ - Perform the build steps based on selected flags
 
 ## After Building:
 
@@ -143,7 +149,7 @@ The process works because Claude Desktop is largely cross-platform, with only on
 The main build script (`build.sh`) orchestrates the process:
 
 1. Checks for a Debian-based system and required dependencies
-2. Prompts the user to select the desired output format (.deb or .AppImage)
+2. Parses command-line flags (`--build`, `--clean`) to determine output format and cleanup behavior.
 3. Downloads the official Windows installer
 4. Extracts the application resources
 5. Processes icons for Linux desktop integration
