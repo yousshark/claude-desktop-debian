@@ -32,30 +32,51 @@ if [ ! -f "/etc/debian_version" ]; then
     exit 1
 fi
 
-# Check for root/sudo
-IS_SUDO=false
-ORIGINAL_USER=""
-ORIGINAL_HOME=""
+# Check if running as root
 if [ "$EUID" -eq 0 ]; then
-    IS_SUDO=true
-    # Check if running via sudo (and not directly as root)
-    if [ -n "$SUDO_USER" ]; then
-        ORIGINAL_USER="$SUDO_USER"
-        ORIGINAL_HOME=$(getent passwd "$SUDO_USER" | cut -d: -f6) # More reliable way to get home dir
-        echo "Running with sudo as user: $ORIGINAL_USER (Home: $ORIGINAL_HOME)"
-    else
-        # Running directly as root, no original user context
-        ORIGINAL_USER="root"
-        ORIGINAL_HOME="/root"
-        echo "Running directly as root."
-    fi
-else
-    echo "Please run with sudo to install dependencies"
-    exit 1
+   echo "❌ This script should not be run using sudo or as the root user."
+   echo "   It will prompt for sudo password when needed for specific actions."
+   echo "   Please run as a normal user."
+   exit 1
 fi
 
+# Get the details of the user running the script
+ORIGINAL_USER=$(whoami)
+ORIGINAL_HOME=$(getent passwd "$ORIGINAL_USER" | cut -d: -f6)
+if [ -z "$ORIGINAL_HOME" ]; then
+    echo "❌ Could not determine home directory for user $ORIGINAL_USER."
+    exit 1
+fi
+echo "Running as user: $ORIGINAL_USER (Home: $ORIGINAL_HOME)"
+
+# Note: IS_SUDO variable is removed as the script is not expected to run with sudo.
+# The NVM path preservation logic below might need adjustment if it relied on IS_SUDO.
+# Let's review that next.
+
 # Preserve NVM path if running under sudo and NVM exists for the original user
-if [ "$IS_SUDO" = true ] && [ "$ORIGINAL_USER" != "root" ] && [ -d "$ORIGINAL_HOME/.nvm" ]; then
+# Check for NVM path preservation - This logic is now potentially incorrect as we don't run with sudo.
+# If npm/npx are installed via NVM for the user, they should ideally be in the PATH already.
+# Let's comment this out for now, as running 'npm' later should work if NVM is correctly set up for the user.
+# If issues arise, this section might need revisiting.
+# if [ -d "$ORIGINAL_HOME/.nvm" ]; then
+#    echo "Found NVM installation for user $ORIGINAL_USER, attempting to preserve npm/npx path..."
+#    # Source NVM script to set up NVM environment variables temporarily
+#    export NVM_DIR="$ORIGINAL_HOME/.nvm"
+#    if [ -s "$NVM_DIR/nvm.sh" ]; then
+#        \. "$NVM_DIR/nvm.sh" # This loads nvm
+#        # Find the path to the currently active or default Node version's bin directory
+#        NODE_BIN_PATH=$(nvm which current | xargs dirname 2>/dev/null || find "$NVM_DIR/versions/node" -maxdepth 2 -type d -name 'bin' | sort -V | tail -n 1)
+#
+#        if [ -n "$NODE_BIN_PATH" ] && [ -d "$NODE_BIN_PATH" ]; then
+#            echo "Adding $NODE_BIN_PATH to PATH"
+#            export PATH="$NODE_BIN_PATH:$PATH"
+#        else
+#            echo "Warning: Could not determine NVM Node bin path. npm/npx might not be found."
+#        fi
+#    else
+#        echo "Warning: nvm.sh script not found or not sourceable."
+#    fi
+# fi
     echo "Found NVM installation for user $ORIGINAL_USER, attempting to preserve npm/npx path..."
     # Source NVM script to set up NVM environment variables temporarily
     export NVM_DIR="$ORIGINAL_HOME/.nvm"
@@ -73,7 +94,7 @@ if [ "$IS_SUDO" = true ] && [ "$ORIGINAL_USER" != "root" ] && [ -d "$ORIGINAL_HO
     else
         echo "Warning: nvm.sh script not found or not sourceable."
     fi
-fi
+# Removed orphaned 'fi' from commented-out NVM block
 
 
 # Print system information
@@ -95,6 +116,7 @@ VERSION="" # Will be determined after download
 echo -e "\033[1;36m--- Argument Parsing ---\033[0m"
 BUILD_FORMAT="deb"    # Default build format
 CLEANUP_ACTION="yes"  # Default cleanup action ('yes' or 'no')
+# SUDO_MODE removed - script should be run as normal user, sudo invoked internally
 
 # Parse command-line arguments
 while [[ $# -gt 0 ]]; do
@@ -116,10 +138,12 @@ while [[ $# -gt 0 ]]; do
         shift # past argument
         shift # past value
         ;;
+        # --sudo-mode removed
         -h|--help)
         echo "Usage: $0 [--build deb|appimage] [--clean yes|no]"
         echo "  --build: Specify the build format (deb or appimage). Default: deb"
         echo "  --clean: Specify whether to clean intermediate build files (yes or no). Default: yes"
+        # --sudo-mode removed
         exit 0
         ;;
         *)    # unknown option
@@ -133,6 +157,7 @@ done
 # Validate arguments
 BUILD_FORMAT=$(echo "$BUILD_FORMAT" | tr '[:upper:]' '[:lower:]') # Convert to lowercase
 CLEANUP_ACTION=$(echo "$CLEANUP_ACTION" | tr '[:upper:]' '[:lower:]') # Convert to lowercase
+# SUDO_MODE removed
 
 if [[ "$BUILD_FORMAT" != "deb" && "$BUILD_FORMAT" != "appimage" ]]; then
     echo "❌ Invalid build format specified: '$BUILD_FORMAT'. Must be 'deb' or 'appimage'." >&2
@@ -142,9 +167,11 @@ if [[ "$CLEANUP_ACTION" != "yes" && "$CLEANUP_ACTION" != "no" ]]; then
     echo "❌ Invalid cleanup option specified: '$CLEANUP_ACTION'. Must be 'yes' or 'no'." >&2
     exit 1
 fi
+# SUDO_MODE validation removed
 
 echo "Selected build format: $BUILD_FORMAT"
 echo "Cleanup intermediate files: $CLEANUP_ACTION"
+# SUDO_MODE echo removed
 
 # Convert CLEANUP_ACTION to boolean for existing logic compatibility
 PERFORM_CLEANUP=false
@@ -196,10 +223,23 @@ done
 
 # Install system dependencies if any
 if [ ! -z "$DEPS_TO_INSTALL" ]; then
-    echo "Installing system dependencies: $DEPS_TO_INSTALL"
-    apt update
-    apt install -y $DEPS_TO_INSTALL
-    echo "System dependencies installed successfully"
+    echo "System dependencies needed: $DEPS_TO_INSTALL"
+    echo "Attempting to install using sudo..."
+    # Validate sudo credentials first. -v updates timestamp, -n avoids password prompt if invalid
+    if ! sudo -v; then
+        echo "❌ Failed to validate sudo credentials. Please ensure you can run sudo."
+        exit 1
+    fi
+    # Now perform the installation
+    if ! sudo apt update; then
+        echo "❌ Failed to run 'sudo apt update'."
+        exit 1
+    fi
+    if ! sudo apt install -y $DEPS_TO_INSTALL; then
+         echo "❌ Failed to install dependencies using 'sudo apt install'."
+         exit 1
+    fi
+    echo "✓ System dependencies installed successfully via sudo."
 fi
 
 # Clean previous build directory FIRST
@@ -480,21 +520,9 @@ EOF
     fi
 fi
 
-# --- Set Final Package Ownership ---
-echo -e "\033[1;36m--- Set Final Package Ownership ---\033[0m"
-if [ "$IS_SUDO" = true ] && [ "$ORIGINAL_USER" != "root" ]; then
-    if [ "$FINAL_OUTPUT_PATH" != "Not Found" ] && [ -e "$FINAL_OUTPUT_PATH" ]; then
-        echo "🔒 Setting ownership of $FINAL_OUTPUT_PATH to $ORIGINAL_USER..."
-        chown "$ORIGINAL_USER":"$(id -gn "$ORIGINAL_USER")" "$FINAL_OUTPUT_PATH"
-        echo "✓ Ownership set for package."
-    fi
-    # Set ownership for generated desktop file as well
-    if [ -n "$FINAL_DESKTOP_FILE_PATH" ] && [ -e "$FINAL_DESKTOP_FILE_PATH" ]; then
-         echo "🔒 Setting ownership of $FINAL_DESKTOP_FILE_PATH to $ORIGINAL_USER..."
-         chown "$ORIGINAL_USER":"$(id -gn "$ORIGINAL_USER")" "$FINAL_DESKTOP_FILE_PATH"
-         echo "✓ Ownership set for .desktop file."
-    fi
-fi
+# --- Set Final Package Ownership --- (Removed)
+# This block was removed as it's redundant when the script is run by the intended user.
+# Files created should already have the correct ownership.
 
 # --- Cleanup ---
 echo -e "\033[1;36m--- Cleanup ---\033[0m"
