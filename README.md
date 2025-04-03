@@ -76,7 +76,7 @@ The script will output the path to the generated `.AppImage` file (e.g., `claude
 
 #### --no-sandbox
 
-The AppImage script runs with electron's --no-sandbox flag. AppImage's don't have their own sandbox. chome-sandbox, which is used by electron, needs to escalate root privaleges briefly in order to setup the sandbox. When you pack an AppImage, chrome-sandbox loses any assigned ownership and executes with user permissions. There's also an issue with [https://www.reddit.com/r/debian/comments/hkyeft/comment/fww5xb1/](unprivileged namespaces) being set differently on different distributions.
+The AppImage script runs with electron's --no-sandbox flag. AppImage's don't have their own sandbox. chome-sandbox, which is used by electron, needs to escalate root privaleges briefly in order to setup the sandbox. When you pack an AppImage, chrome-sandbox loses any assigned ownership and executes with user permissions. There's also an issue with [https://www.reddit.com/r/debian/comments/hkyeft/comment/fww5xb1](unprivileged namespaces) being set differently on different distributions.
 
 **Alternatives to --no-sandbox**
  - Run claude-desktop as root
