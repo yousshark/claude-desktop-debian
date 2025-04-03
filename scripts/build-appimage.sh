@@ -55,7 +55,6 @@ chmod +x "$BUNDLED_ELECTRON_PATH"
 echo "🚀 Creating AppRun script..."
 # Note: We use $VERSION and $PACKAGE_NAME from the build script environment here
 # They will be embedded into the AppRun script.
-DESKTOP_FILE_BASENAME="${PACKAGE_NAME}-${VERSION}.desktop" # Unique name
 cat > "$APPDIR_PATH/AppRun" << EOF
 #!/bin/bash
 set -e
@@ -101,7 +100,8 @@ ELECTRON_EXEC="\$APPDIR/usr/lib/node_modules/electron/dist/electron"
 APP_PATH="\$APPDIR/usr/lib/app.asar"
 
 # Base command arguments array
-ELECTRON_ARGS=("\$APP_PATH")
+# Add --no-sandbox flag to avoid sandbox issues within AppImage
+ELECTRON_ARGS=("--no-sandbox" "\$APP_PATH")
 
 # Add Wayland flags if Wayland is detected
 if [ "\$IS_WAYLAND" = true ]; then
@@ -112,12 +112,19 @@ fi
 # Change to the application resources directory (where app.asar is)
 cd "\$APPDIR/usr/lib" || exit 1
 
+# Define log file path in user's home directory
+LOG_FILE="\$HOME/claude-desktop-launcher.log"
+
+# Change to HOME directory before exec'ing Electron to avoid CWD permission issues
+cd "\$HOME" || exit 1
+
 # Execute Electron with app path, flags, and script arguments passed to AppRun
-echo "AppRun: Executing \$ELECTRON_EXEC \${ELECTRON_ARGS[@]} \$@"
-exec "\$ELECTRON_EXEC" "\${ELECTRON_ARGS[@]}" "\$@"
+# Redirect stdout and stderr to the log file (append)
+echo "AppRun: Executing \$ELECTRON_EXEC \${ELECTRON_ARGS[@]} \$@ >> \$LOG_FILE 2>&1"
+exec "\$ELECTRON_EXEC" "\${ELECTRON_ARGS[@]}" "\$@" >> "\$LOG_FILE" 2>&1
 EOF
 chmod +x "$APPDIR_PATH/AppRun"
-echo "✓ AppRun script created"
+echo "✓ AppRun script created (with logging to \$HOME/claude-desktop-launcher.log, --no-sandbox, and CWD set to \$HOME)"
 
 # --- Create Desktop Entry (Bundled inside AppDir) ---
 echo "📝 Creating bundled desktop entry..."
@@ -137,7 +144,6 @@ X-AppImage-Version=$VERSION
 X-AppImage-Name=Claude Desktop
 EOF
 # Also place it in the standard location for tools like appimaged
-cp "$APPDIR_PATH/$PACKAGE_NAME.desktop" "$APPDIR_PATH/usr/share/applications/"
 echo "✓ Bundled desktop entry created"
 
 # --- Copy Icons ---
@@ -196,24 +202,6 @@ fi
 echo "📦 Building AppImage..."
 OUTPUT_FILENAME="${PACKAGE_NAME}-${VERSION}-${ARCHITECTURE}.AppImage"
 OUTPUT_PATH="$WORK_DIR/$OUTPUT_FILENAME"
-
-# Ensure chrome-sandbox has correct permissions within AppDir before building
-SANDBOX_PATH="$APPDIR_PATH/usr/lib/node_modules/electron/dist/chrome-sandbox"
-if [ -f "$SANDBOX_PATH" ]; then
-    echo "Setting permissions for bundled chrome-sandbox..."
-    # No need for chown root:root inside AppDir, just setuid
-    chmod 4755 "$SANDBOX_PATH" || echo "Warning: Failed to chmod chrome-sandbox"
-else
-    # Try alternative sandbox path sometimes found directly in electron dir
-    SANDBOX_PATH_ALT="$APPDIR_PATH/usr/lib/node_modules/electron/chrome-sandbox"
-    if [ -f "$SANDBOX_PATH_ALT" ]; then
-         echo "Setting permissions for bundled chrome-sandbox (alternative path)..."
-         chmod 4755 "$SANDBOX_PATH_ALT" || echo "Warning: Failed to chmod chrome-sandbox (alternative path)"
-         SANDBOX_PATH="$SANDBOX_PATH_ALT" # Update SANDBOX_PATH if found here
-    else
-        echo "Warning: Bundled chrome-sandbox not found at standard or alternative paths."
-    fi
-fi
 
 # Execute appimagetool
 # Export ARCH instead of using env
