@@ -76,7 +76,7 @@ The script will output the path to the generated `.AppImage` file (e.g., `claude
 
 #### --no-sandbox
 
-The AppImage script runs with electron's --no-sandbox flag. AppImage's don't have their own sandbox. chome-sandbox, which is used by electron, needs to escalate root privaleges briefly in order to setup the sandbox. When you pack an AppImage, chrome-sandbox loses any assigned ownership and executes with user permissions. There's also an issue with [https://www.reddit.com/r/debian/comments/hkyeft/comment/fww5xb1/?utm_source=share&utm_medium=web3x&utm_name=web3xcss&utm_term=1&utm_content=share_button](unprivileged namespaces) being set differently on different distributions.
+The AppImage script runs with electron's --no-sandbox flag. AppImage's don't have their own sandbox. chome-sandbox, which is used by electron, needs to escalate root privaleges briefly in order to setup the sandbox. When you pack an AppImage, chrome-sandbox loses any assigned ownership and executes with user permissions. There's also an issue with [https://www.reddit.com/r/debian/comments/hkyeft/comment/fww5xb1/](unprivileged namespaces) being set differently on different distributions.
 
 **Alternatives to --no-sandbox**
  - Run claude-desktop as root
@@ -148,8 +148,7 @@ The main build script (`build-deb.sh`) orchestrates the process:
 4. Extracts the application resources
 5. Processes icons for Linux desktop integration
 6. Unpacks and modifies the app.asar:
-   - Replaces the native module with our Linux version
-   - Updates keyboard key mappings
+   - Replaces the native mapping module with our Linux version
    - Preserves all other functionality
 7. Calls the appropriate packaging script (`scripts/build-deb-package.sh` or `scripts/build-appimage.sh`) to create the final output:
    *   **For .deb:** Creates a package with desktop entry, icons, dependencies, and post-install steps.
