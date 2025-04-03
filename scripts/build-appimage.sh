@@ -77,58 +77,13 @@ if [ -z "\$APPIMAGE_PATH" ]; then
     fi
 fi
 
-# --- Attempt to Register claude:// URI Scheme Handler ---
-register_uri_scheme() {
-    local desktop_file_basename="$1"
-    local appimage_exec_path="$2"
-    local scheme="claude"
-
-    echo "AppRun: Attempting to register x-scheme-handler/$scheme..."
-
-    # Check if necessary tools exist
-    if ! command -v xdg-mime >/dev/null 2>&1 || ! command -v update-desktop-database >/dev/null 2>&1; then
-        echo "AppRun: Warning - xdg-mime or update-desktop-database not found. Cannot register URI scheme."
-        return 1
-    fi
-
-    # Define user's local applications directory
-    local user_apps_dir="\$HOME/.local/share/applications"
-    mkdir -p "\$user_apps_dir"
-
-    local desktop_file_path="\$user_apps_dir/\$desktop_file_basename"
-
-    echo "AppRun: Creating desktop file at \$desktop_file_path"
-    # Create the .desktop file
-    # Use the determined absolute path to the AppImage for Exec
-    cat > "\$desktop_file_path" << DESKTOP_EOF
-[Desktop Entry]
-Name=Claude (AppImage $VERSION)
-Comment=Claude Desktop (AppImage Version $VERSION)
-Exec=$appimage_exec_path %u
-Icon=$PACKAGE_NAME
-Type=Application
-Terminal=false
-Categories=Office;Utility;Network;
-MimeType=x-scheme-handler/$scheme;
-StartupWMClass=Claude
-X-AppImage-Version=$VERSION
-X-AppImage-Name=Claude Desktop (AppImage)
-DESKTOP_EOF
-
-    echo "AppRun: Running xdg-mime default..."
-    xdg-mime default "\$desktop_file_basename" "x-scheme-handler/\$scheme"
-
-    echo "AppRun: Running update-desktop-database..."
-    update-desktop-database "\$user_apps_dir"
-
-    echo "AppRun: URI scheme registration attempted."
-}
-
-# Run registration in the background to avoid delaying app start significantly
-# Pass the unique desktop file name and the determined AppImage path
-register_uri_scheme "$DESKTOP_FILE_BASENAME" "\$APPIMAGE_PATH" &
-
-# --- End URI Scheme Handler Registration ---
+# --- Desktop Integration (Handled by AppImageLauncher) ---
+# The bundled .desktop file (claude-desktop-appimage.desktop) inside the AppImage
+# contains the necessary MimeType=x-scheme-handler/claude; entry.
+# AppImageLauncher (or similar tools) will use this file to integrate
+# the AppImage with the system, including setting up the URI scheme handler,
+# if the user chooses to integrate. No manual registration is needed here.
+# --- End Desktop Integration ---
 
 
 # Set up environment variables if needed (e.g., LD_LIBRARY_PATH)
@@ -162,18 +117,16 @@ echo "AppRun: Executing \$ELECTRON_EXEC \${ELECTRON_ARGS[@]} \$@"
 exec "\$ELECTRON_EXEC" "\${ELECTRON_ARGS[@]}" "\$@"
 EOF
 chmod +x "$APPDIR_PATH/AppRun"
-echo "✓ AppRun script created with URI scheme registration logic"
+echo "✓ AppRun script created"
 
 # --- Create Desktop Entry (Bundled inside AppDir) ---
 echo "📝 Creating bundled desktop entry..."
-# Use package name for icon (AppImage tools expect this)
-ICON_NAME=$PACKAGE_NAME
 # This is the desktop file *inside* the AppImage, used by tools like appimaged
 cat > "$APPDIR_PATH/$PACKAGE_NAME.desktop" << EOF
 [Desktop Entry]
 Name=Claude
 Exec=AppRun %u
-Icon=$ICON_NAME
+Icon=$PACKAGE_NAME
 Type=Application
 Terminal=false
 Categories=Office;Utility;Network;
@@ -194,9 +147,13 @@ ICON_SOURCE_PATH="$WORK_DIR/claude_6_256x256x32.png"
 if [ -f "$ICON_SOURCE_PATH" ]; then
     # Standard location within AppDir
     cp "$ICON_SOURCE_PATH" "$APPDIR_PATH/usr/share/icons/hicolor/256x256/apps/${PACKAGE_NAME}.png"
-    # Top-level icon (used by appimagetool)
-    cp "$ICON_SOURCE_PATH" "$APPDIR_PATH/${ICON_NAME}.png"
-    echo "✓ Icon copied"
+    # Top-level icon (used by appimagetool) - Should match the Icon field in the .desktop file
+    cp "$ICON_SOURCE_PATH" "$APPDIR_PATH/${PACKAGE_NAME}.png"
+    # Top-level icon without extension (fallback for some tools)
+    cp "$ICON_SOURCE_PATH" "$APPDIR_PATH/${PACKAGE_NAME}"
+    # Hidden .DirIcon (fallback for some systems/tools)
+    cp "$ICON_SOURCE_PATH" "$APPDIR_PATH/.DirIcon"
+    echo "✓ Icon copied to standard path, top-level (.png and no ext), and .DirIcon"
 else
     echo "Warning: Missing 256x256 icon at $ICON_SOURCE_PATH. AppImage icon might be missing."
 fi

@@ -2,6 +2,7 @@
 set -e
 
 # --- Architecture Detection ---
+echo -e "\033[1;36m--- Architecture Detection ---\033[0m"
 echo "⚙️ Detecting system architecture..."
 HOST_ARCH=$(dpkg --print-architecture)
 echo "Detected host architecture: $HOST_ARCH"
@@ -20,7 +21,7 @@ else
     echo "❌ Unsupported architecture: $HOST_ARCH. This script currently supports amd64 and arm64."
     exit 1
 fi
-# --- End Architecture Detection ---
+echo -e "\033[1;36m--- End Architecture Detection ---\033[0m"
 
 
 # Check for Debian-based system
@@ -89,6 +90,7 @@ APP_STAGING_DIR="$WORK_DIR/electron-app" # Staging for app files before packagin
 VERSION="" # Will be determined after download
 
 # --- Build Format Selection ---
+echo -e "\033[1;36m--- Build Format Selection ---\033[0m"
 # Function to display the menu
 display_menu() {
     clear
@@ -123,8 +125,9 @@ while true; do
     esac
 done
 echo "-------------------------------------" # Add separator after selection/before next steps
-# --- End Build Format Selection ---
+echo -e "\033[1;36m--- End Build Format Selection ---\033[0m"
 # --- Cleanup Selection ---
+echo -e "\033[1;36m--- Cleanup Selection ---\033[0m"
 PERFORM_CLEANUP=false # Default to keeping files
 display_cleanup_menu() {
     echo -e "\n\033[1;34m====== Cleanup Build Files ======\033[0m"
@@ -160,7 +163,7 @@ while true; do
     esac
 done
 echo "-------------------------------------"
-# --- End Cleanup Selection ---
+echo -e "\033[1;36m--- End Cleanup Selection ---\033[0m"
 
 
 # Function to check if a command exists
@@ -217,6 +220,7 @@ mkdir -p "$WORK_DIR"
 mkdir -p "$APP_STAGING_DIR" # Create the app staging directory explicitly
 
 # --- Electron & Asar Handling ---
+echo -e "\033[1;36m--- Electron & Asar Handling ---\033[0m"
 CHOSEN_ELECTRON_MODULE_PATH="" # Path to the electron module directory to be copied
 ASAR_EXEC="" # Path to the asar executable
 TEMP_PACKAGE_JSON_CREATED=false
@@ -291,9 +295,9 @@ if [ -z "$CHOSEN_ELECTRON_MODULE_PATH" ] || [ ! -d "$CHOSEN_ELECTRON_MODULE_PATH
 fi
 echo "Using Electron module path: $CHOSEN_ELECTRON_MODULE_PATH"
 echo "Using asar executable: $ASAR_EXEC"
-# --- End Electron & Asar Handling ---
 
 
+echo -e "\033[1;36m--- Download the latest Claude executable ---\033[0m"
 # Download Claude Windows installer for the target architecture
 echo "📥 Downloading Claude Desktop installer for $ARCHITECTURE..."
 CLAUDE_EXE_PATH="$WORK_DIR/$CLAUDE_EXE_FILENAME"
@@ -426,6 +430,7 @@ echo "✓ app.asar processed and staged in $APP_STAGING_DIR"
 cd "$PROJECT_ROOT"
 
 # --- Call the appropriate packaging script ---
+echo -e "\033[1;36m--- Call Packaging Script ---\033[0m"
 FINAL_OUTPUT_PATH="" # Initialize variable for final path
 FINAL_DESKTOP_FILE_PATH="" # Initialize variable for desktop file path
 
@@ -439,7 +444,7 @@ if [ "$BUILD_FORMAT" = "deb" ]; then
     DEB_FILE=$(find "$WORK_DIR" -maxdepth 1 -name "${PACKAGE_NAME}_${VERSION}_${ARCHITECTURE}.deb" | head -n 1)
     echo "✓ Debian Build complete!"
     if [ -n "$DEB_FILE" ] && [ -f "$DEB_FILE" ]; then
-        FINAL_OUTPUT_PATH="./${PACKAGE_NAME}_${VERSION}_${ARCHITECTURE}.deb"
+        FINAL_OUTPUT_PATH="./$(basename "$DEB_FILE")" # Set final path using basename directly
         mv "$DEB_FILE" "$FINAL_OUTPUT_PATH"
         echo "Package created at: $FINAL_OUTPUT_PATH"
     else
@@ -456,11 +461,12 @@ elif [ "$BUILD_FORMAT" = "appimage" ]; then
     APPIMAGE_FILE=$(find "$WORK_DIR" -maxdepth 1 -name "${PACKAGE_NAME}-${VERSION}-${ARCHITECTURE}.AppImage" | head -n 1)
     echo "✓ AppImage Build complete!"
     if [ -n "$APPIMAGE_FILE" ] && [ -f "$APPIMAGE_FILE" ]; then
-        FINAL_OUTPUT_PATH="./${PACKAGE_NAME}-${VERSION}-${ARCHITECTURE}.AppImage"
+        FINAL_OUTPUT_PATH="./$(basename "$APPIMAGE_FILE")" # Set final path using basename directly
         mv "$APPIMAGE_FILE" "$FINAL_OUTPUT_PATH"
         echo "Package created at: $FINAL_OUTPUT_PATH"
 
         # --- Generate .desktop file for AppImage ---
+        echo -e "\033[1;36m--- Generate .desktop file for AppImage ---\033[0m"
         FINAL_DESKTOP_FILE_PATH="./${PACKAGE_NAME}-appimage.desktop"
         APPIMAGE_ABS_PATH=$(realpath "$FINAL_OUTPUT_PATH")
         echo "📝 Generating .desktop file for AppImage at $FINAL_DESKTOP_FILE_PATH..."
@@ -487,6 +493,7 @@ EOF
 fi
 
 # --- Set Final Package Ownership ---
+echo -e "\033[1;36m--- Set Final Package Ownership ---\033[0m"
 if [ "$IS_SUDO" = true ] && [ "$ORIGINAL_USER" != "root" ]; then
     if [ "$FINAL_OUTPUT_PATH" != "Not Found" ] && [ -e "$FINAL_OUTPUT_PATH" ]; then
         echo "🔒 Setting ownership of $FINAL_OUTPUT_PATH to $ORIGINAL_USER..."
@@ -502,24 +509,50 @@ if [ "$IS_SUDO" = true ] && [ "$ORIGINAL_USER" != "root" ]; then
 fi
 
 # --- Cleanup ---
+echo -e "\033[1;36m--- Cleanup ---\033[0m"
 if [ "$PERFORM_CLEANUP" = true ]; then
     echo "🧹 Cleaning up intermediate build files in $WORK_DIR..."
-    # Be careful not to delete the final output package or desktop file
-    # Keep the final package and desktop file, remove everything else in WORK_DIR
-    find "$WORK_DIR" -mindepth 1 -maxdepth 1 \
-        ! -name "$(basename "$FINAL_OUTPUT_PATH" 2>/dev/null)" \
-        ! -name "$(basename "$FINAL_DESKTOP_FILE_PATH" 2>/dev/null)" \
-        -exec rm -rf {} +
-    echo "✓ Cleanup complete."
+    # Simply remove the entire WORK_DIR, as final files are moved out
+    if rm -rf "$WORK_DIR"; then
+        echo "✓ Cleanup complete ($WORK_DIR removed)."
+    else
+        echo "⚠️ Cleanup command (rm -rf $WORK_DIR) failed."
+    fi
 else
     echo "Skipping cleanup of intermediate build files in $WORK_DIR."
 fi
 
-# Clean up temporary package.json if created
-if [ "$TEMP_PACKAGE_JSON_CREATED" = true ] && [ -f "$WORK_DIR/package.json" ]; then
-    echo "Removing temporary package.json from $WORK_DIR..."
-    rm "$WORK_DIR/package.json"
-fi
+# Temporary package.json is inside WORK_DIR, so no separate removal needed
 
 echo "✅ Build process finished."
+
+# --- Post-Build Instructions ---
+echo -e "\n\033[1;34m====== Next Steps ======\033[0m"
+if [ "$BUILD_FORMAT" = "deb" ]; then
+    if [ "$FINAL_OUTPUT_PATH" != "Not Found" ] && [ -e "$FINAL_OUTPUT_PATH" ]; then
+        echo -e "📦 To install the Debian package, run:"
+        echo -e "   \033[1;32msudo apt install $FINAL_OUTPUT_PATH\033[0m"
+        echo -e "   (or \`sudo dpkg -i $FINAL_OUTPUT_PATH\` followed by \`sudo apt --fix-broken install\` if dependencies are needed)"
+    else
+        echo -e "⚠️ Debian package file not found. Cannot provide installation instructions."
+    fi
+elif [ "$BUILD_FORMAT" = "appimage" ]; then
+    if [ "$FINAL_OUTPUT_PATH" != "Not Found" ] && [ -e "$FINAL_OUTPUT_PATH" ]; then
+        echo -e "✅ AppImage created at: \033[1;36m$FINAL_OUTPUT_PATH\033[0m"
+        echo -e "\n\033[1;33mIMPORTANT:\033[0m This AppImage requires \033[1;36mAppImageLauncher\033[0m for proper desktop integration"
+        echo -e "and to handle the \`claude://\` login process correctly."
+        echo -e "\n🚀 To install AppImageLauncher (v2.2.0 for amd64):"
+        echo -e "   1. Download:"
+        echo -e "      \033[1;32mwget https://github.com/TheAssassin/AppImageLauncher/releases/download/v2.2.0/appimagelauncher_2.2.0-travis995.0f91801.bionic_amd64.deb -O /tmp/appimagelauncher.deb\033[0m"
+        echo -e "   2. Install the package:"
+        echo -e "      \033[1;32msudo dpkg -i /tmp/appimagelauncher.deb\033[0m"
+        echo -e "   3. Fix any missing dependencies:"
+        echo -e "      \033[1;32msudo apt --fix-broken install\033[0m"
+        echo -e "\n   After installation, simply double-click \033[1;36m$FINAL_OUTPUT_PATH\033[0m and choose 'Integrate and run'."
+    else
+        echo -e "⚠️ AppImage file not found. Cannot provide usage instructions."
+    fi
+fi
+echo -e "\033[1;34m======================\033[0m"
+
 exit 0
