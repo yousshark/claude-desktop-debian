@@ -1,6 +1,8 @@
 **Arch Linux users:** For the PKGBUILD and Arch-specific instructions: [https://github.com/aaddrick/claude-desktop-arch](https://github.com/aaddrick/claude-desktop-arch)
 
-***THIS IS AN UNOFFICIAL BUILD SCRIPT FOR DEBIAN/UBUNTU!***
+Install script will now prompt if you'd like a deb package or an appimage output.
+
+***THIS IS AN UNOFFICIAL BUILD SCRIPT FOR DEBIAN/UBUNTU BASED SYSTEMS (produces .deb or .AppImage)!***
 
 If you run into an issue with this build script, make an issue here. Don't bug Anthropic about it - they already have enough on their plates.
 
@@ -20,36 +22,77 @@ Supports the Ctrl+Alt+Space popup!
 Supports the Tray menu! (Screenshot of running on KDE)
 ![image](https://github.com/user-attachments/assets/ba209824-8afb-437c-a944-b53fd9ecd559)
 
-# Installation (Debian/Ubuntu)
+# Building & Installation (Debian/Ubuntu based)
 
-For Debian-based distributions (Debian, Ubuntu, Linux Mint, MX Linux, etc.), you can build and install Claude Desktop using the provided build script:
+For Debian-based distributions (Debian, Ubuntu, Linux Mint, MX Linux, etc.), you can build Claude Desktop using the provided build script. The script will prompt you to choose between creating a Debian package (`.deb`) or an AppImage (`.AppImage`).
 
 ```bash
 # Clone this repository
 git clone https://github.com/aaddrick/claude-desktop-debian.git
 cd claude-desktop-debian
 
-# Build the package
-sudo ./build-deb.sh
-# Note: The version number (e.g., 0.8.1) in the command below is an example.
-# The actual filename will contain the version detected by the script.
-sudo dpkg -i ./build/claude-desktop_VERSION_amd64.deb
-
-# The script will automatically:
-# - Check for and install required dependencies
-# - Download and extract resources from the Windows version
-# - Create a proper Debian package
-# - Guide you through installation
+# Build the package (You will be prompted to choose .deb or .AppImage)
+sudo ./build.sh 
 ```
 
-Requirements:
-- Any Debian-based Linux distribution
-- Node.js >= 12.0.0 and npm
-- Root/sudo access for dependency installation
+The script will automatically:
+ - Check for and install required dependencies
+ - Download and extract resources from the Windows version
+ - Create a proper Debian package or AppImage
+ - Guide you through the process
+
+## After Building:
+
+### If you chose Debian Package (.deb):
+
+The script will output the path to the generated `.deb` file (e.g., `claude-desktop_0.9.1_amd64.deb`). Install it using `dpkg`:
+
+```bash
+# Replace VERSION and ARCHITECTURE with the actual values from the filename
+sudo dpkg -i ./claude-desktop_VERSION_ARCHITECTURE.deb 
+
+# If you encounter dependency issues, run:
+sudo apt --fix-broken install 
+```
+
+### If you chose AppImage (.AppImage):
+
+The script will output the path to the generated `.AppImage` file (e.g., `claude-desktop-0.9.1-amd64.AppImage`) and a corresponding `.desktop` file (`claude-desktop-appimage.desktop`).
+
+**AppImage login will not work unless you setup the .desktop file correctly or use a tool like AppImageLauncher to manage it for you.**
+
+1.  **Make the AppImage executable:**
+    ```bash
+    # Replace FILENAME with the actual AppImage filename
+    chmod +x ./FILENAME.AppImage 
+    ```
+2.  **Run the AppImage:**
+    ```bash
+    ./FILENAME.AppImage
+    ```
+3.  **(Optional) Integrate with your system:**
+    -   Tools like [AppImageLauncher](https://github.com/TheAssassin/AppImageLauncher) can automatically integrate AppImages (moving them to a central location and adding them to your application menu) using the bundled `.desktop` file.
+    -   Alternatively, you can manually move the `.AppImage` file to a preferred location (e.g., `~/Applications` or `/opt`) and copy the generated `claude-desktop-appimage.desktop` file to `~/.local/share/applications/` (you might need to edit the `Exec=` line in the `.desktop` file to point to the new location of the AppImage).
+
+#### --no-sandbox
+
+The AppImage script runs with electron's --no-sandbox flag. AppImage's don't have their own sandbox. chome-sandbox, which is used by electron, needs to escalate root privaleges briefly in order to setup the sandbox. When you pack an AppImage, chrome-sandbox loses any assigned ownership and executes with user permissions. There's also an issue with [https://www.reddit.com/r/debian/comments/hkyeft/comment/fww5xb1/](unprivileged namespaces) being set differently on different distributions.
+
+**Alternatives to --no-sandbox**
+ - Run claude-desktop as root
+   - Doesn't feel warm and fuzzy.
+ - Install chrome-sandbox outside of the AppImage(or leverage an existing install), set it with the right permissions, and reference it.
+   - Counter-intuitive to the "batteries included" mindset of AppImages
+ - Run it with --no-sandbox, but then wrap the whole thing inside another sandbox like bubblewrap
+   - Not "batteries included", and configuring in such a way that it runs everywhere is beyond my immediate capabilites.
+
+I'd love a better suggestion. Feel free to submit a PR or start a discussion if I missed something obvious.
 
 # Uninstallation
 
-If you installed the package using `dpkg`, you can uninstall it using:
+## Debian Package (.deb)
+
+If you installed the `.deb` package, you can uninstall it using `dpkg`:
 
 ```bash
 sudo dpkg -r claude-desktop
@@ -61,87 +104,67 @@ If you also want to remove configuration files (including MCP settings), use `pu
 sudo dpkg -P claude-desktop
 ```
 
-# Troubleshooting
+## AppImage (.AppImage)
 
-## Application Fails to Launch
+If you used the AppImage:
+1.  Delete the `.AppImage` file.
+2.  Delete the associated `.desktop` file (e.g., `claude-desktop-appimage.desktop` from where you placed it, like `~/.local/share/applications/`).
+3.  If you used AppImageLauncher, it might offer an option to un-integrate the AppImage.
 
-If the Claude Desktop application installs successfully but fails to launch (you might see errors related to sandboxing or zygote processes in the terminal when running `claude-desktop`), try launching it with the `--no-sandbox` flag:
+## Configuration Files (Both Formats)
+
+To remove user-specific configuration files (including MCP settings), regardless of installation method:
 
 ```bash
-claude-desktop --no-sandbox
+rm -rf ~/.config/Claude
 ```
 
-If this works, you can make it permanent by editing the launcher script:
+# Troubleshooting
 
-1.  Open `/usr/bin/claude-desktop` with root privileges (e.g., `sudo nano /usr/bin/claude-desktop`).
-2.  Find the line starting with `electron` or `$(dirname $0)/../lib/claude-desktop/node_modules/.bin/electron`.
-3.  Append `--no-sandbox` to that line, before the `"$@"` part. For example:
-    ```bash
-    # Original:
-    # electron /usr/lib/claude-desktop/app.asar "$@"
-    # Modified:
-    electron /usr/lib/claude-desktop/app.asar --no-sandbox "$@"
-    ```
-4.  Save the file.
+Aside from the install logs, runtime logs can be found in (`$HOME/claude-desktop-launcher.log`).
 
-**Note:** Disabling the sandbox reduces security isolation. Use this workaround if you understand the implications.
-
-# NixOS Implementation
-
-For NixOS users, please refer to [k3d3's claude-desktop-linux-flake](https://github.com/k3d3/claude-desktop-linux-flake) repository. Their implementation is specifically designed for NixOS and provides the original Nix flake that inspired this project.
+If your window isn't scaling correctly the first time or two you open the application, right click on the claude-desktop panel (taskbar) icon and quit. When doing a safe shutdown like this, the application saves some states to the .config/claude folder which will resolve the issue moving forward. Force quitting the application will not trigger the updates. 
 
 # How it works (Debian/Ubuntu Build)
 
 Claude Desktop is an Electron application packaged as a Windows executable. Our build script performs several key operations to make it work on Linux:
 
-1. Downloads and extracts the Windows installer
-2. Unpacks the app.asar archive containing the application code
-3. Replaces the Windows-specific native module with a Linux-compatible implementation
-4. Repackages everything into a proper Debian package
+1.  Downloads and extracts the Windows installer
+2.  Unpacks the `app.asar` archive containing the application code
+3.  Replaces the Windows-specific native module with a Linux-compatible stub implementation
+4.  Repackages everything into the user's chosen format:
+    *   **Debian Package (.deb):** Creates a standard Debian package installable via `dpkg`.
+    *   **AppImage (.AppImage):** Creates a self-contained executable using `appimagetool`.
 
 The process works because Claude Desktop is largely cross-platform, with only one platform-specific component that needs replacement.
 
-## The Native Module Challenge
-
-The only platform-specific component is a native Node.js module called `claude-native-bindings`. This module provides system-level functionality like:
-
-- Keyboard input handling
-- Window management
-- System tray integration
-- Monitor information
-
-Our build script replaces this Windows-specific module with a Linux-compatible implementation that:
-
-1. Provides the same API surface to maintain compatibility
-2. Implements keyboard handling using the correct key codes from the reference implementation
-3. Stubs out unnecessary Windows-specific functionality
-4. Maintains critical features like the Ctrl+Alt+Space popup and system tray
-
-The replacement module is carefully designed to match the original API while providing Linux-native functionality where needed. This approach allows the rest of the application to run unmodified, believing it's still running on Windows.
-
 ## Build Process Details
 
-> Note: The build script was generated by Claude (Anthropic) to help create a Linux-compatible version of Claude Desktop.
-
-The build script (`build-deb.sh`) handles the entire process:
+The main build script (`build.sh`) orchestrates the process:
 
 1. Checks for a Debian-based system and required dependencies
-2. Downloads the official Windows installer
-3. Extracts the application resources
-4. Processes icons for Linux desktop integration
-5. Unpacks and modifies the app.asar:
-   - Replaces the native module with our Linux version
-   - Updates keyboard key mappings
+2. Prompts the user to select the desired output format (.deb or .AppImage)
+3. Downloads the official Windows installer
+4. Extracts the application resources
+5. Processes icons for Linux desktop integration
+6. Unpacks and modifies the app.asar:
+   - Replaces the native mapping module with our Linux version
    - Preserves all other functionality
-6. Creates a proper Debian package with:
-   - Desktop entry for application menus
-   - System-wide icon integration
-   - Proper dependency management
-   - Post-install configuration
+7. Calls the appropriate packaging script (`scripts/build-deb-package.sh` or `scripts/build-appimage.sh`) to create the final output:
+   *   **For .deb:** Creates a package with desktop entry, icons, dependencies, and post-install steps.
+   *   **For .AppImage:** Creates an AppDir, bundles Electron, generates an `AppRun` script and `.desktop` file, and uses `appimagetool` to create the final `.AppImage`.
 
 ## Updating the Build Script
 
-When a new version of Claude Desktop is released, simply update the `CLAUDE_DOWNLOAD_URL` constant at the top of `build-deb.sh` to point to the new installer. The script will handle everything else automatically.
+When a new version of Claude Desktop is released, the script attempts to automatically detect the correct download URL based on your system architecture (amd64 or arm64). If the download URLs change significantly in the future, you may need to update the `CLAUDE_DOWNLOAD_URL` variables near the top of `build.sh`. The script should handle the rest of the build process automatically.
+
+# k3d3's Original NixOS Implementation
+
+For NixOS users, please refer to [k3d3's claude-desktop-linux-flake](https://github.com/k3d3/claude-desktop-linux-flake) repository. Their implementation is specifically designed for NixOS and provides the original Nix flake that inspired this project. Go check their repo out if you want some more details about the core process behind this.
+
+# Emsi's Alternative Debian Implementation
+
+Emsi has put together a fork of this repo at [https://github.com/emsi/claude-desktop](https://github.com/emsi/claude-desktop). Aside from approaching the problem much more intelligently than I, his repo collection is full of goodies such as [https://github.com/emsi/MyManus](https://github.com/emsi/MyManus). This repo currently relies on his title bar fix to keep the main title bar visible.
 
 # License
 
