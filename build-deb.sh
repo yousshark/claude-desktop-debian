@@ -543,6 +543,7 @@ elif [ "$BUILD_FORMAT" = "appimage" ]; then
         echo -e "\n🚀 To install AppImageLauncher (v2.2.0 for amd64):"
         echo -e "   1. Download:"
         echo -e "      \033[1;32mwget https://github.com/TheAssassin/AppImageLauncher/releases/download/v2.2.0/appimagelauncher_2.2.0-travis995.0f91801.bionic_amd64.deb -O /tmp/appimagelauncher.deb\033[0m"
+        echo -e "      or appropriate package from here: https://github.com/TheAssassin/AppImageLauncher/releases/latest"
         echo -e "   2. Install the package:"
         echo -e "      \033[1;32msudo dpkg -i /tmp/appimagelauncher.deb\033[0m"
         echo -e "   3. Fix any missing dependencies:"

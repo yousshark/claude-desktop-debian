@@ -11,3 +11,7 @@ node_modules/
 # OS-specific files
 .DS_Store
 Thumbs.db
+
+*.AppImage
+*.desktop
+*.deb
