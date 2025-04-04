@@ -22,7 +22,8 @@ jobs:
   build-packages:
     name: Build Packages (${{ matrix.arch }} - ${{ matrix.flags || 'defaults' }})
     needs: test-flags # Run only if test-flags job succeeds
-    # runs-on is ignored when using 'uses' for a reusable workflow
+    # Dynamically select runner based on matrix architecture
+    runs-on: ${{ matrix.arch == 'arm64' && 'ubuntu-22.04-arm' || 'ubuntu-latest' }}
 
     strategy:
       fail-fast: false # Allow other builds to continue if one fails
@@ -37,10 +38,11 @@ jobs:
           - arch: amd64
             flags: "--build appimage --clean no"
 
-    # Call the reusable build workflow - Indentation aligned with 'name', 'needs', 'strategy'
-    uses: ./.github/workflows/build-package.yml
-    with:
-      target_arch: ${{ matrix.arch }}
-      build_flags: ${{ matrix.flags }}
-    # Secrets are not automatically passed to reusable workflows, pass if needed
-    # secrets: inherit
+    steps:
+      - name: Call Reusable Build Workflow
+        uses: ./.github/workflows/build-package.yml
+        with:
+          target_arch: ${{ matrix.arch }}
+          build_flags: ${{ matrix.flags }}
+        # Secrets are not automatically passed to reusable workflows, pass if needed
+        # secrets: inherit

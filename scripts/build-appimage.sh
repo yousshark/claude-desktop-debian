@@ -179,7 +179,7 @@ else
     echo "🛠️ Downloading appimagetool..."
     # Determine architecture for download URL
     TOOL_ARCH=""
-    case "$ARCHITECTURE" in
+    case "$ARCHITECTURE" in # Use target ARCHITECTURE passed to script
         "amd64") TOOL_ARCH="x86_64" ;;
         "arm64") TOOL_ARCH="aarch64" ;;
         *) echo "❌ Unsupported architecture for appimagetool download: $ARCHITECTURE"; exit 1 ;;
