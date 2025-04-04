@@ -39,6 +39,9 @@ jobs:
             flags: "--build appimage --clean no"
 
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
       - name: Call Reusable Build Workflow
         uses: ./.github/workflows/build-package.yml
         with:
