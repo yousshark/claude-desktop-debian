@@ -335,7 +335,7 @@ cp "$CLAUDE_EXTRACT_DIR/lib/net45/resources/"*-*.json app.asar.contents/resource
 
 echo "Downloading Main Window Fix Assets"
 cd app.asar.contents
-# wget -O- https://github.com/emsi/claude-desktop/raw/refs/heads/main/assets/main_window.tgz | tar -zxvf -
+wget -O- https://github.com/emsi/claude-desktop/raw/refs/heads/main/assets/main_window.tgz | tar -zxvf -
 cd .. 
 "$ASAR_EXEC" pack app.asar.contents app.asar
 
