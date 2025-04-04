@@ -1,7 +1,5 @@
+#!/bin/bash
 set -euo pipefail
-
-#
-#
 
 # --- Architecture Configuration ---
 echo -e "\033[1;36m--- Architecture Configuration ---\033[0m"
