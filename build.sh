@@ -87,12 +87,12 @@ while [[ $# -gt 0 ]]; do
         if [[ -z "$2" || "$2" == -* ]]; then              echo "❌ Error: Argument for $1 is missing" >&2; exit 1
         fi
         BUILD_FORMAT="$2"
-        shift         shift         ;;
+        shift 2 ;; # Shift past flag and value
         -c|--clean)
         if [[ -z "$2" || "$2" == -* ]]; then              echo "❌ Error: Argument for $1 is missing" >&2; exit 1
         fi
         CLEANUP_ACTION="$2"
-        shift         shift         ;;
+        shift 2 ;; # Shift past flag and value
         -h|--help)
         echo "Usage: $0 [--build deb|appimage] [--clean yes|no]"
         echo "  --build: Specify the build format (deb or appimage). Default: deb"
