@@ -15,8 +15,13 @@ jobs:
   # First, run the quick flag tests
   test-flags:
     name: Test Flags Parsing
-    uses: ./.github/workflows/test-flags.yml
-    # No inputs needed for test-flags.yml
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Call Reusable Test Flags Workflow
+        uses: ./.github/workflows/test-flags.yml
+        # No inputs needed for test-flags.yml
 
   # Then, run the actual builds after flags are confirmed okay
   build-packages:
