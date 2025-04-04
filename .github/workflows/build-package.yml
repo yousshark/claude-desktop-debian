@@ -33,8 +33,7 @@ jobs:
     - name: Run build script
       run: |
         echo "Running build for ${{ inputs.target_arch }} with flags: ${{ inputs.build_flags }}"
-        # Use sudo because build.sh needs it for apt install
-        sudo ./build.sh --target-arch ${{ inputs.target_arch }} ${{ inputs.build_flags }}
+        ./build.sh --target-arch ${{ inputs.target_arch }} ${{ inputs.build_flags }}
 
     # Optional: Add steps here to upload the built artifact if needed
     # - name: Upload Artifact
