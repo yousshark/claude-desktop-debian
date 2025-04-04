@@ -16,8 +16,9 @@ echo "Work Directory: $WORK_DIR"
 echo "App Staging Directory: $APP_STAGING_DIR"
 echo "Package Name: $PACKAGE_NAME"
 
+COMPONENT_ID="io.github.aaddrick.claude-desktop-debian"
 # Define AppDir structure path
-APPDIR_PATH="$WORK_DIR/${PACKAGE_NAME}.AppDir"
+APPDIR_PATH="$WORK_DIR/${COMPONENT_ID}.AppDir"
 rm -rf "$APPDIR_PATH"
 mkdir -p "$APPDIR_PATH/usr/bin"
 mkdir -p "$APPDIR_PATH/usr/lib"
@@ -129,22 +130,24 @@ echo "✓ AppRun script created (with logging to \$HOME/claude-desktop-launcher.
 # --- Create Desktop Entry (Bundled inside AppDir) ---
 echo "📝 Creating bundled desktop entry..."
 # This is the desktop file *inside* the AppImage, used by tools like appimaged
-cat > "$APPDIR_PATH/$PACKAGE_NAME.desktop" << EOF
+cat > "$APPDIR_PATH/$COMPONENT_ID.desktop" << EOF
 [Desktop Entry]
 Name=Claude
 Exec=AppRun %u
-Icon=$PACKAGE_NAME
+Icon=$COMPONENT_ID
 Type=Application
 Terminal=false
-Categories=Office;Utility;Network;
+Categories=Network;Utility;
 Comment=Claude Desktop for Linux
 MimeType=x-scheme-handler/claude;
 StartupWMClass=Claude
 X-AppImage-Version=$VERSION
 X-AppImage-Name=Claude Desktop
 EOF
-# Also place it in the standard location for tools like appimaged
-echo "✓ Bundled desktop entry created"
+# Also place it in the standard location for tools like appimaged and validation
+mkdir -p "$APPDIR_PATH/usr/share/applications"
+cp "$APPDIR_PATH/$COMPONENT_ID.desktop" "$APPDIR_PATH/usr/share/applications/"
+echo "✓ Bundled desktop entry created and copied to usr/share/applications/"
 
 # --- Copy Icons ---
 echo "🎨 Copying icons..."
@@ -152,17 +155,81 @@ echo "🎨 Copying icons..."
 ICON_SOURCE_PATH="$WORK_DIR/claude_6_256x256x32.png"
 if [ -f "$ICON_SOURCE_PATH" ]; then
     # Standard location within AppDir
-    cp "$ICON_SOURCE_PATH" "$APPDIR_PATH/usr/share/icons/hicolor/256x256/apps/${PACKAGE_NAME}.png"
+    cp "$ICON_SOURCE_PATH" "$APPDIR_PATH/usr/share/icons/hicolor/256x256/apps/${COMPONENT_ID}.png"
     # Top-level icon (used by appimagetool) - Should match the Icon field in the .desktop file
-    cp "$ICON_SOURCE_PATH" "$APPDIR_PATH/${PACKAGE_NAME}.png"
+    cp "$ICON_SOURCE_PATH" "$APPDIR_PATH/${COMPONENT_ID}.png"
     # Top-level icon without extension (fallback for some tools)
-    cp "$ICON_SOURCE_PATH" "$APPDIR_PATH/${PACKAGE_NAME}"
+    cp "$ICON_SOURCE_PATH" "$APPDIR_PATH/${COMPONENT_ID}"
     # Hidden .DirIcon (fallback for some systems/tools)
     cp "$ICON_SOURCE_PATH" "$APPDIR_PATH/.DirIcon"
     echo "✓ Icon copied to standard path, top-level (.png and no ext), and .DirIcon"
 else
     echo "Warning: Missing 256x256 icon at $ICON_SOURCE_PATH. AppImage icon might be missing."
 fi
+
+# --- Create AppStream Metadata ---
+echo "📄 Creating AppStream metadata..."
+METADATA_DIR="$APPDIR_PATH/usr/share/metainfo"
+mkdir -p "$METADATA_DIR"
+
+# Use the package name for the appdata file name (seems required by appimagetool warning)
+# Use reverse-DNS for component ID and filename, following common practice
+APPDATA_FILE="$METADATA_DIR/${COMPONENT_ID}.appdata.xml" # Filename matches component ID
+
+# Generate the AppStream XML file
+# Use MIT license based on LICENSE-MIT file in repo
+# ID follows reverse DNS convention
+cat > "$APPDATA_FILE" << EOF
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>$COMPONENT_ID</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>MIT</project_license>
+  <developer id="io.github.aaddrick">
+    <name>aaddrick</name>
+  </developer>
+
+  <name>Claude Desktop</name>
+  <summary>Unofficial desktop client for Claude AI</summary>
+
+  <description>
+    <p>
+      Provides a desktop experience for interacting with Claude AI, wrapping the web interface.
+    </p>
+  </description>
+
+  <launchable type="desktop-id">${COMPONENT_ID}.desktop</launchable> <!-- Reference the actual .desktop file -->
+
+  <icon type="stock">${COMPONENT_ID}</icon> <!-- Use the icon name from .desktop -->
+  <url type="homepage">https://github.com/aaddrick/claude-desktop-debian</url>
+  <screenshots>
+      <screenshot type="default">
+          <image>https://github.com/user-attachments/assets/93080028-6f71-48bd-8e59-5149d148cd45</image>
+      </screenshot>
+  </screenshots>
+  <provides>
+    <binary>AppRun</binary> <!-- Provide the actual binary -->
+  </provides>
+
+  <categories>
+    <category>Network</category>
+    <category>Utility</category>
+  </categories>
+
+  <content_rating type="oars-1.1" />
+
+  <releases>
+    <release version="$VERSION" date="$(date +%Y-%m-%d)">
+      <description>
+        <p>Version $VERSION.</p>
+      </description>
+    </release>
+  </releases>
+
+</component>
+EOF
+echo "✓ AppStream metadata created at $APPDATA_FILE"
+
 
 # --- Get appimagetool ---
 APPIMAGETOOL_PATH=""
