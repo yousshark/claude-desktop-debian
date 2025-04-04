@@ -1,6 +1,17 @@
 #!/bin/bash
 set -euo pipefail
 
+# --- Usage ---
+# This script builds a Debian (.deb) or AppImage package for Claude Desktop.
+#
+# Flags:
+#   -b, --build FORMAT    Specify the build format (deb or appimage). Default: deb
+#   -c, --clean ACTION    Specify whether to clean intermediate build files (yes or no). Default: yes
+#   -h, --help            Show the help message and exit.
+#
+# Example:
+#   ./build.sh --build appimage --clean no
+
 # --- Architecture Detection ---
 echo -e "\033[1;36m--- Architecture Detection ---\033[0m"
 echo "⚙️ Detecting system architecture..."
@@ -49,41 +60,26 @@ if [ -z "$ORIGINAL_HOME" ]; then
 fi
 echo "Running as user: $ORIGINAL_USER (Home: $ORIGINAL_HOME)"
 
-# Note: IS_SUDO variable is removed as the script is not expected to run with sudo.
-# The NVM path preservation logic below might need adjustment if it relied on IS_SUDO.
-# Let's review that next.
-
-# Preserve NVM path if running under sudo and NVM exists for the original user
-# Check for NVM path preservation - This logic is now potentially incorrect as we don't run with sudo.
-# If npm/npx are installed via NVM for the user, they should ideally be in the PATH already.
-# Let's comment this out for now, as running 'npm' later should work if NVM is correctly set up for the user.
-# If issues arise, this section might need revisiting.
-# if [ -d "$ORIGINAL_HOME/.nvm" ]; then
-#    echo "Found NVM installation for user $ORIGINAL_USER, attempting to preserve npm/npx path..."
-#    # Source NVM script to set up NVM environment variables temporarily
-#    export NVM_DIR="$ORIGINAL_HOME/.nvm"
-#    if [ -s "$NVM_DIR/nvm.sh" ]; then
-#        \. "$NVM_DIR/nvm.sh" # This loads nvm
-#        # Find the path to the currently active or default Node version's bin directory
-#        NODE_BIN_PATH=$(nvm which current | xargs dirname 2>/dev/null || find "$NVM_DIR/versions/node" -maxdepth 2 -type d -name 'bin' | sort -V | tail -n 1)
-#
-#        if [ -n "$NODE_BIN_PATH" ] && [ -d "$NODE_BIN_PATH" ]; then
-#            echo "Adding $NODE_BIN_PATH to PATH"
-#            export PATH="$NODE_BIN_PATH:$PATH"
-#        else
-#            echo "Warning: Could not determine NVM Node bin path. npm/npx might not be found."
-#        fi
-#    else
-#        echo "Warning: nvm.sh script not found or not sourceable."
-#    fi
-# fi
-    echo "Found NVM installation for user $ORIGINAL_USER, attempting to preserve npm/npx path..."
+# Check for NVM and source it if found to ensure npm/npx are available later
+if [ -d "$ORIGINAL_HOME/.nvm" ]; then
+    echo "Found NVM installation for user $ORIGINAL_USER, attempting to activate..."
     # Source NVM script to set up NVM environment variables temporarily
     export NVM_DIR="$ORIGINAL_HOME/.nvm"
     if [ -s "$NVM_DIR/nvm.sh" ]; then
         \. "$NVM_DIR/nvm.sh" # This loads nvm
         # Find the path to the currently active or default Node version's bin directory
         NODE_BIN_PATH=$(nvm which current | xargs dirname 2>/dev/null || find "$NVM_DIR/versions/node" -maxdepth 2 -type d -name 'bin' | sort -V | tail -n 1)
+
+        if [ -n "$NODE_BIN_PATH" ] && [ -d "$NODE_BIN_PATH" ]; then
+            echo "Adding NVM Node bin path to PATH: $NODE_BIN_PATH"
+            export PATH="$NODE_BIN_PATH:$PATH"
+        else
+            echo "Warning: Could not determine NVM Node bin path. npm/npx might not be found."
+        fi
+    else
+        echo "Warning: nvm.sh script not found or not sourceable."
+    fi
+fi
 
         if [ -n "$NODE_BIN_PATH" ] && [ -d "$NODE_BIN_PATH" ]; then
             echo "Adding $NODE_BIN_PATH to PATH"
@@ -94,7 +90,6 @@ echo "Running as user: $ORIGINAL_USER (Home: $ORIGINAL_HOME)"
     else
         echo "Warning: nvm.sh script not found or not sourceable."
     fi
-# Removed orphaned 'fi' from commented-out NVM block
 
 
 # Print system information
