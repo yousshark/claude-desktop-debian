@@ -3,10 +3,6 @@ name: Build Package (Reusable)
 on:
   workflow_call:
     inputs:
-      target_arch:
-        description: 'Target architecture (amd64 or arm64)'
-        required: true
-        type: string
       build_flags:
         description: 'Flags to pass to build.sh (e.g., "--build appimage --clean no")'
         required: false
@@ -32,8 +28,8 @@ jobs:
 
     - name: Run build script
       run: |
-        echo "Running build for ${{ inputs.target_arch }} with flags: ${{ inputs.build_flags }}"
-        ./build.sh --target-arch ${{ inputs.target_arch }} ${{ inputs.build_flags }}
+        echo "Running build with flags: ${{ inputs.build_flags }}"
+        sudo ./build.sh ${{ inputs.build_flags }} # Use sudo for apt install within build.sh
 
     # Optional: Add steps here to upload the built artifact if needed
     # - name: Upload Artifact

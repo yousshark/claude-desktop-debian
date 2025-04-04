@@ -42,7 +42,7 @@ jobs:
       - name: Call Reusable Build Workflow
         uses: ./.github/workflows/build-package.yml
         with:
-          target_arch: ${{ matrix.arch }}
+          # target_arch is no longer needed, build.sh auto-detects
           build_flags: ${{ matrix.flags }}
         # Secrets are not automatically passed to reusable workflows, pass if needed
         # secrets: inherit
