@@ -3,7 +3,8 @@ name: Main Branch CI
 on:
   push:
     branches:
-      - main # Only trigger on pushes to the main branch
+      - main # Trigger on pushes to main
+      - aaddrick-no_sudo # Also trigger on pushes to this branch for testing
     paths: # Trigger if relevant files change
       - 'build.sh'
       - 'scripts/**'
