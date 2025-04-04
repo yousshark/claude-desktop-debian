@@ -81,6 +81,7 @@ PROJECT_ROOT="$(pwd)" WORK_DIR="$PROJECT_ROOT/build" APP_STAGING_DIR="$WORK_DIR/
 echo -e "\033[1;36m--- Argument Parsing ---\033[0m"
 BUILD_FORMAT="deb"    CLEANUP_ACTION="yes"  
 while [[ $# -gt 0 ]]; do
+    key="$1"
     case $key in
         -b|--build)
         if [[ -z "$2" || "$2" == -* ]]; then              echo "❌ Error: Argument for $1 is missing" >&2; exit 1
