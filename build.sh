@@ -1,18 +1,8 @@
-#!/bin/bash
 set -euo pipefail
 
-# --- Usage ---
-# This script builds a Debian (.deb) or AppImage package for Claude Desktop.
 #
-# Flags:
-#   -b, --build FORMAT    Specify the build format (deb or appimage). Default: deb
-#   -c, --clean ACTION    Specify whether to clean intermediate build files (yes or no). Default: yes
-#   -h, --help            Show the help message and exit.
 #
-# Example:
-#   ./build.sh --build appimage --clean no
 
-# --- Architecture Detection ---
 echo -e "\033[1;36m--- Architecture Detection ---\033[0m"
 echo "⚙️ Detecting system architecture..."
 HOST_ARCH=$(dpkg --print-architecture)
@@ -37,13 +27,11 @@ fi
 echo -e "\033[1;36m--- End Architecture Detection ---\033[0m"
 
 
-# Check for Debian-based system
 if [ ! -f "/etc/debian_version" ]; then
     echo "❌ This script requires a Debian-based Linux distribution"
     exit 1
 fi
 
-# Check if running as root
 if [ "$EUID" -eq 0 ]; then
    echo "❌ This script should not be run using sudo or as the root user."
    echo "   It will prompt for sudo password when needed for specific actions."
@@ -51,7 +39,6 @@ if [ "$EUID" -eq 0 ]; then
    exit 1
 fi
 
-# Get the details of the user running the script
 ORIGINAL_USER=$(whoami)
 ORIGINAL_HOME=$(getent passwd "$ORIGINAL_USER" | cut -d: -f6)
 if [ -z "$ORIGINAL_HOME" ]; then
@@ -63,11 +50,12 @@ echo "Running as user: $ORIGINAL_USER (Home: $ORIGINAL_HOME)"
 # Check for NVM and source it if found to ensure npm/npx are available later
 if [ -d "$ORIGINAL_HOME/.nvm" ]; then
     echo "Found NVM installation for user $ORIGINAL_USER, attempting to activate..."
-    # Source NVM script to set up NVM environment variables temporarily
     export NVM_DIR="$ORIGINAL_HOME/.nvm"
     if [ -s "$NVM_DIR/nvm.sh" ]; then
+        # Source NVM script to set up NVM environment variables temporarily
         \. "$NVM_DIR/nvm.sh" # This loads nvm
-        # Find the path to the currently active or default Node version's bin directory
+        # Initialize and find the path to the currently active or default Node version's bin directory
+        NODE_BIN_PATH=""
         NODE_BIN_PATH=$(nvm which current | xargs dirname 2>/dev/null || find "$NVM_DIR/versions/node" -maxdepth 2 -type d -name 'bin' | sort -V | tail -n 1)
 
         if [ -n "$NODE_BIN_PATH" ] && [ -d "$NODE_BIN_PATH" ]; then
@@ -79,81 +67,45 @@ if [ -d "$ORIGINAL_HOME/.nvm" ]; then
     else
         echo "Warning: nvm.sh script not found or not sourceable."
     fi
-fi
-
-        if [ -n "$NODE_BIN_PATH" ] && [ -d "$NODE_BIN_PATH" ]; then
-            echo "Adding $NODE_BIN_PATH to PATH"
-            export PATH="$NODE_BIN_PATH:$PATH"
-        else
-            echo "Warning: Could not determine NVM Node bin path. npm/npx might not be found."
-        fi
-    else
-        echo "Warning: nvm.sh script not found or not sourceable."
-    fi
+fi # End of if [ -d "$ORIGINAL_HOME/.nvm" ] check
 
 
-# Print system information
 echo "System Information:"
 echo "Distribution: $(cat /etc/os-release | grep "PRETTY_NAME" | cut -d'"' -f2)"
 echo "Debian version: $(cat /etc/debian_version)"
-echo "Target Architecture: $ARCHITECTURE" # Display the target architecture
-
-# Define common variables needed before the split
+echo "Target Architecture: $ARCHITECTURE" 
 PACKAGE_NAME="claude-desktop"
 MAINTAINER="Claude Desktop Linux Maintainers"
 DESCRIPTION="Claude Desktop for Linux"
-PROJECT_ROOT="$(pwd)" # Save project root
-WORK_DIR="$PROJECT_ROOT/build" # Top-level build directory
-APP_STAGING_DIR="$WORK_DIR/electron-app" # Staging for app files before packaging
-VERSION="" # Will be determined after download
-
-# --- Argument Parsing ---
+PROJECT_ROOT="$(pwd)" WORK_DIR="$PROJECT_ROOT/build" APP_STAGING_DIR="$WORK_DIR/electron-app" VERSION="" 
 echo -e "\033[1;36m--- Argument Parsing ---\033[0m"
-BUILD_FORMAT="deb"    # Default build format
-CLEANUP_ACTION="yes"  # Default cleanup action ('yes' or 'no')
-# SUDO_MODE removed - script should be run as normal user, sudo invoked internally
-
-# Parse command-line arguments
+BUILD_FORMAT="deb"    CLEANUP_ACTION="yes"  
 while [[ $# -gt 0 ]]; do
-    key="$1"
     case $key in
         -b|--build)
-        if [[ -z "$2" || "$2" == -* ]]; then # Check if value is missing or is another option
-             echo "❌ Error: Argument for $1 is missing" >&2; exit 1
+        if [[ -z "$2" || "$2" == -* ]]; then              echo "❌ Error: Argument for $1 is missing" >&2; exit 1
         fi
         BUILD_FORMAT="$2"
-        shift # past argument
-        shift # past value
-        ;;
+        shift         shift         ;;
         -c|--clean)
-        if [[ -z "$2" || "$2" == -* ]]; then # Check if value is missing or is another option
-             echo "❌ Error: Argument for $1 is missing" >&2; exit 1
+        if [[ -z "$2" || "$2" == -* ]]; then              echo "❌ Error: Argument for $1 is missing" >&2; exit 1
         fi
         CLEANUP_ACTION="$2"
-        shift # past argument
-        shift # past value
-        ;;
-        # --sudo-mode removed
+        shift         shift         ;;
         -h|--help)
         echo "Usage: $0 [--build deb|appimage] [--clean yes|no]"
         echo "  --build: Specify the build format (deb or appimage). Default: deb"
         echo "  --clean: Specify whether to clean intermediate build files (yes or no). Default: yes"
-        # --sudo-mode removed
         exit 0
         ;;
-        *)    # unknown option
-        echo "❌ Unknown option: $1" >&2
+        *)            echo "❌ Unknown option: $1" >&2
         echo "Use -h or --help for usage information." >&2
         exit 1
         ;;
     esac
 done
 
-# Validate arguments
-BUILD_FORMAT=$(echo "$BUILD_FORMAT" | tr '[:upper:]' '[:lower:]') # Convert to lowercase
-CLEANUP_ACTION=$(echo "$CLEANUP_ACTION" | tr '[:upper:]' '[:lower:]') # Convert to lowercase
-# SUDO_MODE removed
-
+BUILD_FORMAT=$(echo "$BUILD_FORMAT" | tr '[:upper:]' '[:lower:]') CLEANUP_ACTION=$(echo "$CLEANUP_ACTION" | tr '[:upper:]' '[:lower:]') 
 if [[ "$BUILD_FORMAT" != "deb" && "$BUILD_FORMAT" != "appimage" ]]; then
     echo "❌ Invalid build format specified: '$BUILD_FORMAT'. Must be 'deb' or 'appimage'." >&2
     exit 1
@@ -162,13 +114,10 @@ if [[ "$CLEANUP_ACTION" != "yes" && "$CLEANUP_ACTION" != "no" ]]; then
     echo "❌ Invalid cleanup option specified: '$CLEANUP_ACTION'. Must be 'yes' or 'no'." >&2
     exit 1
 fi
-# SUDO_MODE validation removed
 
 echo "Selected build format: $BUILD_FORMAT"
 echo "Cleanup intermediate files: $CLEANUP_ACTION"
-# SUDO_MODE echo removed
 
-# Convert CLEANUP_ACTION to boolean for existing logic compatibility
 PERFORM_CLEANUP=false
 if [ "$CLEANUP_ACTION" = "yes" ]; then
     PERFORM_CLEANUP=true
@@ -176,7 +125,6 @@ fi
 echo -e "\033[1;36m--- End Argument Parsing ---\033[0m"
 
 
-# Function to check if a command exists
 check_command() {
     if ! command -v "$1" &> /dev/null; then
         echo "❌ $1 not found"
@@ -187,15 +135,11 @@ check_command() {
     fi
 }
 
-# Check and install dependencies (Common + Format Specific)
 echo "Checking dependencies..."
 DEPS_TO_INSTALL=""
-# Common dependencies needed for extraction/staging
 COMMON_DEPS="p7zip wget wrestool icotool convert npx"
-# Format specific dependencies
 DEB_DEPS="dpkg-dev"
-APPIMAGE_DEPS="" # appimagetool handled by its script
-
+APPIMAGE_DEPS="" 
 ALL_DEPS_TO_CHECK="$COMMON_DEPS"
 if [ "$BUILD_FORMAT" = "deb" ]; then
     ALL_DEPS_TO_CHECK="$ALL_DEPS_TO_CHECK $DEB_DEPS"
@@ -216,17 +160,14 @@ for cmd in $ALL_DEPS_TO_CHECK; do
     fi
 done
 
-# Install system dependencies if any
 if [ ! -z "$DEPS_TO_INSTALL" ]; then
     echo "System dependencies needed: $DEPS_TO_INSTALL"
     echo "Attempting to install using sudo..."
-    # Validate sudo credentials first. -v updates timestamp, -n avoids password prompt if invalid
-    if ! sudo -v; then
+        if ! sudo -v; then
         echo "❌ Failed to validate sudo credentials. Please ensure you can run sudo."
         exit 1
     fi
-    # Now perform the installation
-    if ! sudo apt update; then
+        if ! sudo apt update; then
         echo "❌ Failed to run 'sudo apt update'."
         exit 1
     fi
@@ -237,30 +178,20 @@ if [ ! -z "$DEPS_TO_INSTALL" ]; then
     echo "✓ System dependencies installed successfully via sudo."
 fi
 
-# Clean previous build directory FIRST
 rm -rf "$WORK_DIR"
 mkdir -p "$WORK_DIR"
-mkdir -p "$APP_STAGING_DIR" # Create the app staging directory explicitly
-
-# --- Electron & Asar Handling ---
+mkdir -p "$APP_STAGING_DIR" 
 echo -e "\033[1;36m--- Electron & Asar Handling ---\033[0m"
-CHOSEN_ELECTRON_MODULE_PATH="" # Path to the electron module directory to be copied
-ASAR_EXEC="" # Path to the asar executable
-TEMP_PACKAGE_JSON_CREATED=false
+CHOSEN_ELECTRON_MODULE_PATH="" ASAR_EXEC="" TEMP_PACKAGE_JSON_CREATED=false
 
-# Always ensure local Electron & Asar installation in WORK_DIR
 echo "Ensuring local Electron and Asar installation in $WORK_DIR..."
-cd "$WORK_DIR" # Change to build dir for local install
-
-# Create dummy package.json if none exists in build dir
+cd "$WORK_DIR" 
 if [ ! -f "package.json" ]; then
     echo "Creating temporary package.json in $WORK_DIR for local install..."
     echo '{"name":"claude-desktop-build","version":"0.0.1","private":true}' > package.json
     TEMP_PACKAGE_JSON_CREATED=true
 fi
 
-# Install electron and asar locally if not already present
-# Check for Electron dist dir and Asar binary first
 ELECTRON_DIST_PATH="$WORK_DIR/node_modules/electron/dist"
 ASAR_BIN_PATH="$WORK_DIR/node_modules/.bin/asar"
 
@@ -276,8 +207,7 @@ fi
 
 if [ "$INSTALL_NEEDED" = true ]; then
     echo "Installing Electron and Asar locally into $WORK_DIR..."
-    # Use --no-save to avoid modifying the temp package.json unnecessarily
-    if ! npm install --no-save electron asar; then
+        if ! npm install --no-save electron asar; then
         echo "❌ Failed to install Electron and/or Asar locally."
         cd "$PROJECT_ROOT"
         exit 1
@@ -287,7 +217,6 @@ else
     echo "✓ Local Electron distribution and Asar binary already present."
 fi
 
-# Verify Electron installation by checking for the essential 'dist' directory
 if [ -d "$ELECTRON_DIST_PATH" ]; then
     echo "✓ Found Electron distribution directory at $ELECTRON_DIST_PATH."
     CHOSEN_ELECTRON_MODULE_PATH="$(realpath "$WORK_DIR/node_modules/electron")"
@@ -295,11 +224,9 @@ if [ -d "$ELECTRON_DIST_PATH" ]; then
 else
     echo "❌ Failed to find Electron distribution directory at '$ELECTRON_DIST_PATH' after installation attempt."
     echo "   Cannot proceed without the Electron distribution files."
-    cd "$PROJECT_ROOT" # Go back before exiting
-    exit 1
+    cd "$PROJECT_ROOT"     exit 1
 fi
 
-# Verify Asar installation
 if [ -f "$ASAR_BIN_PATH" ]; then
     ASAR_EXEC="$(realpath "$ASAR_BIN_PATH")"
     echo "✓ Found local Asar binary at $ASAR_EXEC."
@@ -309,9 +236,7 @@ else
     exit 1
 fi
 
-cd "$PROJECT_ROOT" # Go back to project root
-
-# Final check for the chosen Electron module path (redundant but safe)
+cd "$PROJECT_ROOT" 
 if [ -z "$CHOSEN_ELECTRON_MODULE_PATH" ] || [ ! -d "$CHOSEN_ELECTRON_MODULE_PATH" ]; then
      echo "❌ Critical error: Could not resolve a valid Electron module path to copy."
      exit 1
@@ -321,7 +246,6 @@ echo "Using asar executable: $ASAR_EXEC"
 
 
 echo -e "\033[1;36m--- Download the latest Claude executable ---\033[0m"
-# Download Claude Windows installer for the target architecture
 echo "📥 Downloading Claude Desktop installer for $ARCHITECTURE..."
 CLAUDE_EXE_PATH="$WORK_DIR/$CLAUDE_EXE_FILENAME"
 if ! wget -O "$CLAUDE_EXE_PATH" "$CLAUDE_DOWNLOAD_URL"; then
@@ -330,26 +254,21 @@ if ! wget -O "$CLAUDE_EXE_PATH" "$CLAUDE_DOWNLOAD_URL"; then
 fi
 echo "✓ Download complete: $CLAUDE_EXE_FILENAME"
 
-# Extract resources into a dedicated subdirectory to avoid conflicts
 echo "📦 Extracting resources from $CLAUDE_EXE_FILENAME into separate directory..."
 CLAUDE_EXTRACT_DIR="$WORK_DIR/claude-extract"
 mkdir -p "$CLAUDE_EXTRACT_DIR"
-if ! 7z x -y "$CLAUDE_EXE_PATH" -o"$CLAUDE_EXTRACT_DIR"; then # Extract to specific dir
-    echo "❌ Failed to extract installer"
+if ! 7z x -y "$CLAUDE_EXE_PATH" -o"$CLAUDE_EXTRACT_DIR"; then     echo "❌ Failed to extract installer"
     cd "$PROJECT_ROOT" && exit 1
 fi
 
-# Extract nupkg filename and version
 cd "$CLAUDE_EXTRACT_DIR" # Change into the extract dir to find files
 NUPKG_PATH_RELATIVE=$(find . -maxdepth 1 -name "AnthropicClaude-*.nupkg" | head -1)
 if [ -z "$NUPKG_PATH_RELATIVE" ]; then
     echo "❌ Could not find AnthropicClaude nupkg file in $CLAUDE_EXTRACT_DIR"
     cd "$PROJECT_ROOT" && exit 1
 fi
-NUPKG_PATH="$CLAUDE_EXTRACT_DIR/$NUPKG_PATH_RELATIVE" # Store full path
-echo "Found nupkg: $NUPKG_PATH_RELATIVE (in $CLAUDE_EXTRACT_DIR)"
+NUPKG_PATH="$CLAUDE_EXTRACT_DIR/$NUPKG_PATH_RELATIVE" echo "Found nupkg: $NUPKG_PATH_RELATIVE (in $CLAUDE_EXTRACT_DIR)"
 
-# Extract version from the nupkg filename (using LC_ALL=C for locale compatibility)
 VERSION=$(echo "$NUPKG_PATH_RELATIVE" | LC_ALL=C grep -oP 'AnthropicClaude-\K[0-9]+\.[0-9]+\.[0-9]+(?=-full|-arm64-full)')
 if [ -z "$VERSION" ]; then
     echo "❌ Could not extract version from nupkg filename: $NUPKG_PATH_RELATIVE"
@@ -357,45 +276,33 @@ if [ -z "$VERSION" ]; then
 fi
 echo "✓ Detected Claude version: $VERSION"
 
-# Extract nupkg within its directory
-if ! 7z x -y "$NUPKG_PATH_RELATIVE"; then # Use relative path since we are in CLAUDE_EXTRACT_DIR
-    echo "❌ Failed to extract nupkg"
+if ! 7z x -y "$NUPKG_PATH_RELATIVE"; then     echo "❌ Failed to extract nupkg"
     cd "$PROJECT_ROOT" && exit 1
 fi
 echo "✓ Resources extracted from nupkg"
 
-# Extract and convert icons (needed by the packaging script later)
-# Still operating within CLAUDE_EXTRACT_DIR
 EXE_RELATIVE_PATH="lib/net45/claude.exe" # Check if this path is correct for arm64 too
 if [ ! -f "$EXE_RELATIVE_PATH" ]; then
     echo "❌ Cannot find claude.exe at expected path within extraction dir: $CLAUDE_EXTRACT_DIR/$EXE_RELATIVE_PATH"
     cd "$PROJECT_ROOT" && exit 1
 fi
 echo "🎨 Processing icons from $EXE_RELATIVE_PATH..."
-# Output icons within the extraction directory
-if ! wrestool -x -t 14 "$EXE_RELATIVE_PATH" -o claude.ico; then # Output relative to current dir (CLAUDE_EXTRACT_DIR)
-    echo "❌ Failed to extract icons from exe"
+if ! wrestool -x -t 14 "$EXE_RELATIVE_PATH" -o claude.ico; then     echo "❌ Failed to extract icons from exe"
     cd "$PROJECT_ROOT" && exit 1
 fi
 
-if ! icotool -x claude.ico; then # Input relative to current dir (CLAUDE_EXTRACT_DIR)
-    echo "❌ Failed to convert icons"
+if ! icotool -x claude.ico; then     echo "❌ Failed to convert icons"
     cd "$PROJECT_ROOT" && exit 1
 fi
-# Copy extracted icons to WORK_DIR for packaging scripts to find easily
 cp claude_*.png "$WORK_DIR/"
 echo "✓ Icons processed and copied to $WORK_DIR"
 
-# Process app.asar
 echo "⚙️ Processing app.asar..."
-# Copy resources to staging dir first, using full paths from the extraction dir
 cp "$CLAUDE_EXTRACT_DIR/lib/net45/resources/app.asar" "$APP_STAGING_DIR/"
-cp -a "$CLAUDE_EXTRACT_DIR/lib/net45/resources/app.asar.unpacked" "$APP_STAGING_DIR/" # Use -a to preserve links/permissions
-
-cd "$APP_STAGING_DIR" # Change to staging dir for asar processing
+cp -a "$CLAUDE_EXTRACT_DIR/lib/net45/resources/app.asar.unpacked" "$APP_STAGING_DIR/" 
+cd "$APP_STAGING_DIR" 
 "$ASAR_EXEC" extract app.asar app.asar.contents
 
-# Replace native module with stub implementation
 echo "Creating stub native module..."
 cat > app.asar.contents/node_modules/claude-native/index.js << EOF
 // Stub implementation of claude-native using KeyboardKey enum values
@@ -404,22 +311,17 @@ Object.freeze(KeyboardKey);
 module.exports = { getWindowsVersion: () => "10.0.0", setWindowEffect: () => {}, removeWindowEffect: () => {}, getIsMaximized: () => false, flashFrame: () => {}, clearFlashFrame: () => {}, showNotification: () => {}, setProgressBar: () => {}, clearProgressBar: () => {}, setOverlayIcon: () => {}, clearOverlayIcon: () => {}, KeyboardKey };
 EOF
 
-# Copy Tray icons
 mkdir -p app.asar.contents/resources
 mkdir -p app.asar.contents/resources/i18n
-# Copy from the extraction directory (use full path for clarity)
 cp "$CLAUDE_EXTRACT_DIR/lib/net45/resources/Tray"* app.asar.contents/resources/
 cp "$CLAUDE_EXTRACT_DIR/lib/net45/resources/"*-*.json app.asar.contents/resources/i18n/
 
 echo "Downloading Main Window Fix Assets"
 cd app.asar.contents
 wget -O- https://github.com/emsi/claude-desktop/raw/refs/heads/main/assets/main_window.tgz | tar -zxvf -
-cd .. # Back to APP_STAGING_DIR
-
-# Repackage app.asar
+cd .. 
 "$ASAR_EXEC" pack app.asar.contents app.asar
 
-# Create native module stub within the staging area's unpacked directory
 mkdir -p "$APP_STAGING_DIR/app.asar.unpacked/node_modules/claude-native"
 cat > "$APP_STAGING_DIR/app.asar.unpacked/node_modules/claude-native/index.js" << EOF
 // Stub implementation of claude-native using KeyboardKey enum values
@@ -428,17 +330,11 @@ Object.freeze(KeyboardKey);
 module.exports = { getWindowsVersion: () => "10.0.0", setWindowEffect: () => {}, removeWindowEffect: () => {}, getIsMaximized: () => false, flashFrame: () => {}, clearFlashFrame: () => {}, showNotification: () => {}, setProgressBar: () => {}, clearProgressBar: () => {}, setOverlayIcon: () => {}, clearOverlayIcon: () => {}, KeyboardKey };
 EOF
 
-# Copy the chosen electron installation to the staging area
 echo "Copying chosen electron installation to staging area..."
-# Ensure the target node_modules directory exists in staging
 mkdir -p "$APP_STAGING_DIR/node_modules/"
-# Extract the directory name to copy (e.g., "electron")
 ELECTRON_DIR_NAME=$(basename "$CHOSEN_ELECTRON_MODULE_PATH")
 echo "Copying from $CHOSEN_ELECTRON_MODULE_PATH to $APP_STAGING_DIR/node_modules/"
-# Copy the directory itself into node_modules
-cp -a "$CHOSEN_ELECTRON_MODULE_PATH" "$APP_STAGING_DIR/node_modules/" # Use cp -a to preserve links/permissions
-
-# Explicitly set executable permission on the copied electron binary
+cp -a "$CHOSEN_ELECTRON_MODULE_PATH" "$APP_STAGING_DIR/node_modules/" 
 STAGED_ELECTRON_BIN="$APP_STAGING_DIR/node_modules/$ELECTRON_DIR_NAME/dist/electron"
 if [ -f "$STAGED_ELECTRON_BIN" ]; then
     echo "Setting executable permission on staged Electron binary: $STAGED_ELECTRON_BIN"
@@ -449,14 +345,10 @@ fi
 
 echo "✓ app.asar processed and staged in $APP_STAGING_DIR"
 
-# Return to the original directory (project root) before calling the packaging script
 cd "$PROJECT_ROOT"
 
-# --- Call the appropriate packaging script ---
 echo -e "\033[1;36m--- Call Packaging Script ---\033[0m"
-FINAL_OUTPUT_PATH="" # Initialize variable for final path
-FINAL_DESKTOP_FILE_PATH="" # Initialize variable for desktop file path
-
+FINAL_OUTPUT_PATH="" FINAL_DESKTOP_FILE_PATH="" 
 if [ "$BUILD_FORMAT" = "deb" ]; then
     echo "📦 Calling Debian packaging script for $ARCHITECTURE..."
     chmod +x scripts/build-deb-package.sh
@@ -484,12 +376,10 @@ elif [ "$BUILD_FORMAT" = "appimage" ]; then
     APPIMAGE_FILE=$(find "$WORK_DIR" -maxdepth 1 -name "${PACKAGE_NAME}-${VERSION}-${ARCHITECTURE}.AppImage" | head -n 1)
     echo "✓ AppImage Build complete!"
     if [ -n "$APPIMAGE_FILE" ] && [ -f "$APPIMAGE_FILE" ]; then
-        FINAL_OUTPUT_PATH="./$(basename "$APPIMAGE_FILE")" # Set final path using basename directly
-        mv "$APPIMAGE_FILE" "$FINAL_OUTPUT_PATH"
+        FINAL_OUTPUT_PATH="./$(basename "$APPIMAGE_FILE")"         mv "$APPIMAGE_FILE" "$FINAL_OUTPUT_PATH"
         echo "Package created at: $FINAL_OUTPUT_PATH"
 
-        # --- Generate .desktop file for AppImage ---
-        echo -e "\033[1;36m--- Generate .desktop file for AppImage ---\033[0m"
+                echo -e "\033[1;36m--- Generate .desktop file for AppImage ---\033[0m"
         FINAL_DESKTOP_FILE_PATH="./${PACKAGE_NAME}-appimage.desktop"
         APPIMAGE_ABS_PATH=$(realpath "$FINAL_OUTPUT_PATH")
         echo "📝 Generating .desktop file for AppImage at $FINAL_DESKTOP_FILE_PATH..."
@@ -515,16 +405,10 @@ EOF
     fi
 fi
 
-# --- Set Final Package Ownership --- (Removed)
-# This block was removed as it's redundant when the script is run by the intended user.
-# Files created should already have the correct ownership.
 
-# --- Cleanup ---
 echo -e "\033[1;36m--- Cleanup ---\033[0m"
-if [ "$PERFORM_CLEANUP" = true ]; then # This variable is now set based on the --clean flag
-    echo "🧹 Cleaning up intermediate build files in $WORK_DIR..."
-    # Simply remove the entire WORK_DIR, as final files are moved out
-    if rm -rf "$WORK_DIR"; then
+if [ "$PERFORM_CLEANUP" = true ]; then     echo "🧹 Cleaning up intermediate build files in $WORK_DIR..."
+        if rm -rf "$WORK_DIR"; then
         echo "✓ Cleanup complete ($WORK_DIR removed)."
     else
         echo "⚠️ Cleanup command (rm -rf $WORK_DIR) failed."
@@ -533,11 +417,9 @@ else
     echo "Skipping cleanup of intermediate build files in $WORK_DIR."
 fi
 
-# Temporary package.json is inside WORK_DIR, so no separate removal needed
 
 echo "✅ Build process finished."
 
-# --- Post-Build Instructions ---
 echo -e "\n\033[1;34m====== Next Steps ======\033[0m"
 if [ "$BUILD_FORMAT" = "deb" ]; then
     if [ "$FINAL_OUTPUT_PATH" != "Not Found" ] && [ -e "$FINAL_OUTPUT_PATH" ]; then
