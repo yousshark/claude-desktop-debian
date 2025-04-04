@@ -208,7 +208,7 @@ fi
 
 if [ "$INSTALL_NEEDED" = true ]; then
     echo "Installing Electron and Asar locally into $WORK_DIR..."
-        if ! npm install --no-save electron asar; then
+        if ! npm install --no-save electron @electron/asar; then
         echo "❌ Failed to install Electron and/or Asar locally."
         cd "$PROJECT_ROOT"
         exit 1
