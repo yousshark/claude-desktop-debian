@@ -1,0 +1,44 @@
+name: Build Package ARM64 (Reusable)
+
+on:
+  workflow_call:
+    inputs:
+      build_flags:
+        description: 'Flags to pass to build.sh (e.g., "--build appimage --clean no")'
+        required: false
+        type: string
+        default: '' # Default is no extra flags
+
+jobs:
+  build:
+    # Use an ARM runner
+    runs-on: ubuntu-22.04-arm # Or your self-hosted ARM runner label
+
+    steps:
+    # Checkout code is needed within the reusable workflow itself
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Install FUSE for AppImageTool
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libfuse2
+
+    - name: Make build script executable
+      run: chmod +x ./build.sh
+
+    - name: Run build script
+      run: |
+        echo "Running ARM64 build with flags: ${{ inputs.build_flags }}"
+        # No sudo needed if runner user has permissions or build.sh handles it internally
+        ./build.sh ${{ inputs.build_flags }}
+
+    # Optional: Add steps here to upload the built artifact if needed
+    # - name: Upload Artifact
+    #   uses: actions/upload-artifact@v4
+    #   with:
+    #     name: package-arm64-${{ github.run_id }} # Example name
+    #     path: | # Adjust path based on expected output
+    #       claude-desktop_*.deb
+    #       claude-desktop-*.AppImage
+    #     if-no-files-found: error # Fail if build didn't produce output

@@ -15,37 +15,48 @@ jobs:
   # First, run the quick flag tests
   test-flags:
     name: Test Flags Parsing
+    # Runner is defined in the called workflow (test-flags.yml)
     uses: ./.github/workflows/test-flags.yml
     # No inputs needed for test-flags.yml
-
-  # Then, run the actual builds after flags are confirmed okay
-  build-packages:
-    name: Build Packages (${{ matrix.arch }} - ${{ matrix.flags || 'defaults' }})
+ 
+  # Build AMD64 packages
+  build-amd64:
+    name: Build Packages (amd64 - ${{ matrix.flags || 'defaults' }})
     needs: test-flags # Run only if test-flags job succeeds
-    # Dynamically select runner based on matrix architecture
-    runs-on: ${{ matrix.arch == 'arm64' && 'ubuntu-22.04-arm' || 'ubuntu-latest' }}
+    # Runner is defined in the called workflow (build-amd64.yml)
 
     strategy:
       fail-fast: false # Allow other builds to continue if one fails
       matrix:
         include:
-          - arch: arm64
-            flags: "--clean no"
-          - arch: arm64
-            flags: "--build appimage"
-          - arch: amd64
+          - arch: amd64 # Keep arch for consistency in naming/logic if needed inside called workflow
             flags: "" # Defaults (deb, clean=yes)
           - arch: amd64
             flags: "--build appimage --clean no"
 
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+    uses: ./.github/workflows/build-amd64.yml # Call the dedicated amd64 workflow
+    with:
+      build_flags: ${{ matrix.flags }}
+    # Secrets are not automatically passed to reusable workflows, pass if needed
+    # secrets: inherit
 
-      - name: Call Reusable Build Workflow
-        uses: ./.github/workflows/build-package.yml
-        with:
-          # target_arch is no longer needed, build.sh auto-detects
-          build_flags: ${{ matrix.flags }}
-        # Secrets are not automatically passed to reusable workflows, pass if needed
-        # secrets: inherit
+  # Build ARM64 packages
+  build-arm64:
+    name: Build Packages (arm64 - ${{ matrix.flags || 'defaults' }})
+    needs: test-flags # Run only if test-flags job succeeds
+    # Runner is defined in the called workflow (build-arm64.yml)
+
+    strategy:
+      fail-fast: false # Allow other builds to continue if one fails
+      matrix:
+        include:
+          - arch: arm64 # Keep arch for consistency in naming/logic if needed inside called workflow
+            flags: "--clean no"
+          - arch: arm64
+            flags: "--build appimage"
+
+    uses: ./.github/workflows/build-arm64.yml # Call the dedicated arm64 workflow
+    with:
+      build_flags: ${{ matrix.flags }}
+    # Secrets are not automatically passed to reusable workflows, pass if needed
+    # secrets: inherit
