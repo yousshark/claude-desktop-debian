@@ -377,7 +377,8 @@ elif [ "$BUILD_FORMAT" = "appimage" ]; then
     APPIMAGE_FILE=$(find "$WORK_DIR" -maxdepth 1 -name "${PACKAGE_NAME}-${VERSION}-${ARCHITECTURE}.AppImage" | head -n 1)
     echo "✓ AppImage Build complete!"
     if [ -n "$APPIMAGE_FILE" ] && [ -f "$APPIMAGE_FILE" ]; then
-        FINAL_OUTPUT_PATH="./$(basename "$APPIMAGE_FILE")"         mv "$APPIMAGE_FILE" "$FINAL_OUTPUT_PATH"
+        FINAL_OUTPUT_PATH="./$(basename "$APPIMAGE_FILE")" 
+        mv "$APPIMAGE_FILE" "$FINAL_OUTPUT_PATH"
         echo "Package created at: $FINAL_OUTPUT_PATH"
 
                 echo -e "\033[1;36m--- Generate .desktop file for AppImage ---\033[0m"
