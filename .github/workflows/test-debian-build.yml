@@ -1,16 +1,16 @@
-name: Test Debian Build Script
+name: Test Build Script Flags
 
 on:
   push:
-    # No branches filter = trigger on any branch push
     paths:
       - 'build.sh'
+      - 'scripts/**' # Trigger if build scripts change
       - '.github/workflows/test-debian-build.yml'
-  workflow_dispatch: # Allows manual triggering from the Actions tab on GitHub (uses the selected branch context)
+  workflow_dispatch: # Allows manual triggering
 
 jobs:
-  build:
-    runs-on: ubuntu-latest # Ubuntu is Debian-based and readily available
+  test-flags:
+    runs-on: ubuntu-latest # Ubuntu is Debian-based
 
     steps:
     - name: Checkout code
@@ -19,14 +19,125 @@ jobs:
     - name: Make build script executable
       run: chmod +x ./build.sh
 
-    - name: Run Debian build script
-      run: ./build.sh --noprogressbar
+    # Test Case 1: Defaults (deb, clean=yes)
+    - name: Test Case 1 - Defaults (deb, clean=yes)
+      run: |
+        echo "--- Running Test Case 1: ./build.sh ---"
+        ./build.sh
+        echo "--- Verifying Test Case 1 ---"
+        ls -l claude-desktop_*.deb # Check if deb exists in root
+        test -f claude-desktop_*.deb || (echo "❌ .deb file not found!" && exit 1)
+        ! test -d build || (echo "❌ 'build' directory exists but should have been cleaned!" && exit 1)
+        echo "✓ Test Case 1 Passed"
+        echo "--- Cleaning up Test Case 1 ---"
+        rm -f claude-desktop_*.deb
 
-    - name: Upload Debian package artifact
-      # This step runs even if the previous step fails, change 'always()' if needed
-      if: always()
-      uses: actions/upload-artifact@v4
-      with:
-        name: claude-desktop-debian-package
-        path: build/claude-desktop_*.deb # Use wildcard for version
-        if-no-files-found: ignore # Don't fail if the deb isn't found (e.g., build failed)
+    # Test Case 2: --build deb (clean=yes)
+    - name: Test Case 2 - --build deb (clean=yes)
+      run: |
+        echo "--- Running Test Case 2: ./build.sh --build deb ---"
+        ./build.sh --build deb
+        echo "--- Verifying Test Case 2 ---"
+        ls -l claude-desktop_*.deb
+        test -f claude-desktop_*.deb || (echo "❌ .deb file not found!" && exit 1)
+        ! test -d build || (echo "❌ 'build' directory exists but should have been cleaned!" && exit 1)
+        echo "✓ Test Case 2 Passed"
+        echo "--- Cleaning up Test Case 2 ---"
+        rm -f claude-desktop_*.deb
+
+    # Test Case 3: --build appimage (clean=yes)
+    - name: Test Case 3 - --build appimage (clean=yes)
+      run: |
+        echo "--- Running Test Case 3: ./build.sh --build appimage ---"
+        ./build.sh --build appimage
+        echo "--- Verifying Test Case 3 ---"
+        ls -l claude-desktop-*.AppImage
+        test -f claude-desktop-*.AppImage || (echo "❌ .AppImage file not found!" && exit 1)
+        ! test -d build || (echo "❌ 'build' directory exists but should have been cleaned!" && exit 1)
+        echo "✓ Test Case 3 Passed"
+        echo "--- Cleaning up Test Case 3 ---"
+        rm -f claude-desktop-*.AppImage
+        rm -f claude-desktop-appimage.desktop # Also clean the generated desktop file
+
+    # Test Case 4: --clean yes (build=deb)
+    - name: Test Case 4 - --clean yes (build=deb)
+      run: |
+        echo "--- Running Test Case 4: ./build.sh --clean yes ---"
+        ./build.sh --clean yes
+        echo "--- Verifying Test Case 4 ---"
+        ls -l claude-desktop_*.deb
+        test -f claude-desktop_*.deb || (echo "❌ .deb file not found!" && exit 1)
+        ! test -d build || (echo "❌ 'build' directory exists but should have been cleaned!" && exit 1)
+        echo "✓ Test Case 4 Passed"
+        echo "--- Cleaning up Test Case 4 ---"
+        rm -f claude-desktop_*.deb
+
+    # Test Case 5: --clean no (build=deb)
+    - name: Test Case 5 - --clean no (build=deb)
+      run: |
+        echo "--- Running Test Case 5: ./build.sh --clean no ---"
+        ./build.sh --clean no
+        echo "--- Verifying Test Case 5 ---"
+        ls -l claude-desktop_*.deb
+        test -f claude-desktop_*.deb || (echo "❌ .deb file not found!" && exit 1)
+        test -d build || (echo "❌ 'build' directory does NOT exist but should NOT have been cleaned!" && exit 1)
+        echo "✓ Test Case 5 Passed"
+        echo "--- Cleaning up Test Case 5 ---"
+        rm -f claude-desktop_*.deb
+        rm -rf build # Explicitly clean build dir with as it might contain root-owned files
+
+    # Test Case 6: --build deb --clean yes
+    - name: Test Case 6 - --build deb --clean yes
+      run: |
+        echo "--- Running Test Case 6: ./build.sh --build deb --clean yes ---"
+        ./build.sh --build deb --clean yes
+        echo "--- Verifying Test Case 6 ---"
+        ls -l claude-desktop_*.deb
+        test -f claude-desktop_*.deb || (echo "❌ .deb file not found!" && exit 1)
+        ! test -d build || (echo "❌ 'build' directory exists but should have been cleaned!" && exit 1)
+        echo "✓ Test Case 6 Passed"
+        echo "--- Cleaning up Test Case 6 ---"
+        rm -f claude-desktop_*.deb
+
+    # Test Case 7: --build deb --clean no
+    - name: Test Case 7 - --build deb --clean no
+      run: |
+        echo "--- Running Test Case 7: ./build.sh --build deb --clean no ---"
+        ./build.sh --build deb --clean no
+        echo "--- Verifying Test Case 7 ---"
+        ls -l claude-desktop_*.deb
+        test -f claude-desktop_*.deb || (echo "❌ .deb file not found!" && exit 1)
+        test -d build || (echo "❌ 'build' directory does NOT exist but should NOT have been cleaned!" && exit 1)
+        echo "✓ Test Case 7 Passed"
+        echo "--- Cleaning up Test Case 7 ---"
+        rm -f claude-desktop_*.deb
+        rm -rf build # Explicitly clean build dir with sudo
+
+    # Test Case 8: --build appimage --clean yes
+    - name: Test Case 8 - --build appimage --clean yes
+      run: |
+        echo "--- Running Test Case 8: ./build.sh --build appimage --clean yes ---"
+        ./build.sh --build appimage --clean yes
+        echo "--- Verifying Test Case 8 ---"
+        ls -l claude-desktop-*.AppImage
+        test -f claude-desktop-*.AppImage || (echo "❌ .AppImage file not found!" && exit 1)
+        ! test -d build || (echo "❌ 'build' directory exists but should have been cleaned!" && exit 1)
+        echo "✓ Test Case 8 Passed"
+        echo "--- Cleaning up Test Case 8 ---"
+        rm -f claude-desktop-*.AppImage
+        rm -f claude-desktop-appimage.desktop
+
+    # Test Case 9: --build appimage --clean no
+    - name: Test Case 9 - --build appimage --clean no
+      run: |
+        echo "--- Running Test Case 9: ./build.sh --build appimage --clean no ---"
+        ./build.sh --build appimage --clean no
+        echo "--- Verifying Test Case 9 ---"
+        ls -l claude-desktop-*.AppImage
+        test -f claude-desktop-*.AppImage || (echo "❌ .AppImage file not found!" && exit 1)
+        test -d build || (echo "❌ 'build' directory does NOT exist but should NOT have been cleaned!" && exit 1)
+        echo "✓ Test Case 9 Passed"
+        echo "--- Cleaning up Test Case 9 ---"
+        rm -f claude-desktop-*.AppImage
+        rm -f claude-desktop-appimage.desktop
+        rm -rf build # Explicitly clean build dir with sudo
