@@ -1,0 +1,45 @@
+name: Main Branch CI
+
+on:
+  push:
+    branches:
+      - main # Only trigger on pushes to the main branch
+    paths: # Trigger if relevant files change
+      - 'build.sh'
+      - 'scripts/**'
+      - '.github/workflows/**'
+  workflow_dispatch: # Allows manual triggering
+
+jobs:
+  # First, run the quick flag tests
+  test-flags:
+    name: Test Flags Parsing
+    uses: ./.github/workflows/test-flags.yml
+    # No inputs needed for test-flags.yml
+
+  # Then, run the actual builds after flags are confirmed okay
+  build-packages:
+    name: Build Packages (${{ matrix.arch }} - ${{ matrix.flags || 'defaults' }})
+    needs: test-flags # Run only if test-flags job succeeds
+    # runs-on is ignored when using 'uses' for a reusable workflow
+
+    strategy:
+      fail-fast: false # Allow other builds to continue if one fails
+      matrix:
+        include:
+          - arch: arm64
+            flags: "--clean no"
+          - arch: arm64
+            flags: "--build appimage"
+          - arch: amd64
+            flags: "" # Defaults (deb, clean=yes)
+          - arch: amd64
+            flags: "--build appimage --clean no"
+
+    # Call the reusable build workflow - Indentation aligned with 'name', 'needs', 'strategy'
+    uses: ./.github/workflows/build-package.yml
+    with:
+      target_arch: ${{ matrix.arch }}
+      build_flags: ${{ matrix.flags }}
+    # Secrets are not automatically passed to reusable workflows, pass if needed
+    # secrets: inherit

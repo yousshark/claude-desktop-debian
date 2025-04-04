@@ -1,11 +1,8 @@
-name: Test Build Script Flags
+name: Test Build Script Flags (Reusable)
 
 on:
-  push:
-    paths:
-      - 'build.sh'
-      - '.github/workflows/test-debian-build.yml'
-  workflow_dispatch: # Allows manual triggering
+  workflow_call: # Make this workflow reusable
+  workflow_dispatch: # Allows manual triggering for testing
 
 jobs:
   test-flags:

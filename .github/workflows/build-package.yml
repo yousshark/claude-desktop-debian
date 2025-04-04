@@ -1,0 +1,47 @@
+name: Build Package (Reusable)
+
+on:
+  workflow_call:
+    inputs:
+      target_arch:
+        description: 'Target architecture (amd64 or arm64)'
+        required: true
+        type: string
+      build_flags:
+        description: 'Flags to pass to build.sh (e.g., "--build appimage --clean no")'
+        required: false
+        type: string
+        default: '' # Default is no extra flags
+  workflow_dispatch: # Allows manual triggering for testing
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Install FUSE for AppImageTool
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libfuse2
+
+    - name: Make build script executable
+      run: chmod +x ./build.sh
+
+    - name: Run build script
+      run: |
+        echo "Running build for ${{ inputs.target_arch }} with flags: ${{ inputs.build_flags }}"
+        # Use sudo because build.sh needs it for apt install
+        sudo ./build.sh --target-arch ${{ inputs.target_arch }} ${{ inputs.build_flags }}
+
+    # Optional: Add steps here to upload the built artifact if needed
+    # - name: Upload Artifact
+    #   uses: actions/upload-artifact@v4
+    #   with:
+    #     name: package-${{ inputs.target_arch }}-${{ github.run_id }} # Example name
+    #     path: | # Adjust path based on expected output
+    #       claude-desktop_*.deb
+    #       claude-desktop-*.AppImage
+    #     if-no-files-found: error # Fail if build didn't produce output

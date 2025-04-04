@@ -3,28 +3,40 @@ set -euo pipefail
 #
 #
 
-echo -e "\033[1;36m--- Architecture Detection ---\033[0m"
-echo "⚙️ Detecting system architecture..."
+# --- Architecture Configuration ---
+echo -e "\033[1;36m--- Architecture Configuration ---\033[0m"
+# ARCHITECTURE variable will be set based on override or detection
+ARCHITECTURE=""
+CLAUDE_DOWNLOAD_URL=""
+CLAUDE_EXE_FILENAME=""
+
+# Function to set architecture-specific variables
+set_arch_vars() {
+    local arch="$1"
+    if [ "$arch" = "amd64" ]; then
+        CLAUDE_DOWNLOAD_URL="https://storage.googleapis.com/osprey-downloads-c02f6a0d-347c-492b-a752-3e0651722e97/nest-win-x64/Claude-Setup-x64.exe"
+        ARCHITECTURE="amd64"
+        CLAUDE_EXE_FILENAME="Claude-Setup-x64.exe"
+        echo "Configured for amd64 build."
+    elif [ "$arch" = "arm64" ]; then
+        CLAUDE_DOWNLOAD_URL="https://storage.googleapis.com/osprey-downloads-c02f6a0d-347c-492b-a752-3e0651722e97/nest-win-arm64/Claude-Setup-arm64.exe"
+        ARCHITECTURE="arm64"
+        CLAUDE_EXE_FILENAME="Claude-Setup-arm64.exe"
+        echo "Configured for arm64 build."
+    else
+        echo "❌ Unsupported architecture specified or detected: $arch. This script currently supports amd64 and arm64."
+        exit 1
+    fi
+}
+
+# Architecture detection (will be used if --target-arch is not provided)
 HOST_ARCH=$(dpkg --print-architecture)
 echo "Detected host architecture: $HOST_ARCH"
-
 cat /etc/os-release && uname -m && dpkg --print-architecture
 
-if [ "$HOST_ARCH" = "amd64" ]; then
-    CLAUDE_DOWNLOAD_URL="https://storage.googleapis.com/osprey-downloads-c02f6a0d-347c-492b-a752-3e0651722e97/nest-win-x64/Claude-Setup-x64.exe"
-    ARCHITECTURE="amd64"
-    CLAUDE_EXE_FILENAME="Claude-Setup-x64.exe"
-    echo "Configured for amd64 build."
-elif [ "$HOST_ARCH" = "arm64" ]; then
-    CLAUDE_DOWNLOAD_URL="https://storage.googleapis.com/osprey-downloads-c02f6a0d-347c-492b-a752-3e0651722e97/nest-win-arm64/Claude-Setup-arm64.exe"
-    ARCHITECTURE="arm64"
-    CLAUDE_EXE_FILENAME="Claude-Setup-arm64.exe"
-    echo "Configured for arm64 build."
-else
-    echo "❌ Unsupported architecture: $HOST_ARCH. This script currently supports amd64 and arm64."
-    exit 1
-fi
-echo -e "\033[1;36m--- End Architecture Detection ---\033[0m"
+# TARGET_ARCH_OVERRIDE will be set during argument parsing if --target-arch is used
+# We will apply the override *after* parsing arguments.
+echo -e "\033[1;36m--- End Architecture Configuration ---\033[0m"
 
 
 if [ ! -f "/etc/debian_version" ]; then
@@ -79,7 +91,7 @@ MAINTAINER="Claude Desktop Linux Maintainers"
 DESCRIPTION="Claude Desktop for Linux"
 PROJECT_ROOT="$(pwd)" WORK_DIR="$PROJECT_ROOT/build" APP_STAGING_DIR="$WORK_DIR/electron-app" VERSION="" 
 echo -e "\033[1;36m--- Argument Parsing ---\033[0m"
-BUILD_FORMAT="deb"    CLEANUP_ACTION="yes"  TEST_FLAGS_MODE=false
+BUILD_FORMAT="deb"    CLEANUP_ACTION="yes"  TEST_FLAGS_MODE=false TARGET_ARCH_OVERRIDE=""
 while [[ $# -gt 0 ]]; do
     key="$1"
     case $key in
@@ -93,14 +105,19 @@ while [[ $# -gt 0 ]]; do
         fi
         CLEANUP_ACTION="$2"
         shift 2 ;; # Shift past flag and value
+        --target-arch)
+        if [[ -z "$2" || "$2" == -* ]]; then echo "❌ Error: Argument for $1 is missing" >&2; exit 1; fi
+        TARGET_ARCH_OVERRIDE="$2"
+        shift 2 ;; # Shift past flag and value
         --test-flags)
         TEST_FLAGS_MODE=true
         shift # past argument
         ;;
         -h|--help)
-        echo "Usage: $0 [--build deb|appimage] [--clean yes|no] [--test-flags]"
+        echo "Usage: $0 [--build deb|appimage] [--clean yes|no] [--target-arch amd64|arm64] [--test-flags]"
         echo "  --build: Specify the build format (deb or appimage). Default: deb"
         echo "  --clean: Specify whether to clean intermediate build files (yes or no). Default: yes"
+        echo "  --target-arch: Override detected architecture (amd64 or arm64)."
         echo "  --test-flags: Parse flags, print results, and exit without building."
         exit 0
         ;;
@@ -111,7 +128,17 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-BUILD_FORMAT=$(echo "$BUILD_FORMAT" | tr '[:upper:]' '[:lower:]') CLEANUP_ACTION=$(echo "$CLEANUP_ACTION" | tr '[:upper:]' '[:lower:]') 
+# Apply architecture override if provided, otherwise use detected host arch
+if [ -n "$TARGET_ARCH_OVERRIDE" ]; then
+    echo "Overriding architecture based on --target-arch flag: $TARGET_ARCH_OVERRIDE"
+    set_arch_vars "$TARGET_ARCH_OVERRIDE"
+else
+    echo "Using detected host architecture: $HOST_ARCH"
+    set_arch_vars "$HOST_ARCH"
+fi
+
+# Validate other arguments
+BUILD_FORMAT=$(echo "$BUILD_FORMAT" | tr '[:upper:]' '[:lower:]') CLEANUP_ACTION=$(echo "$CLEANUP_ACTION" | tr '[:upper:]' '[:lower:]')
 if [[ "$BUILD_FORMAT" != "deb" && "$BUILD_FORMAT" != "appimage" ]]; then
     echo "❌ Invalid build format specified: '$BUILD_FORMAT'. Must be 'deb' or 'appimage'." >&2
     exit 1
@@ -133,6 +160,7 @@ echo -e "\033[1;36m--- End Argument Parsing ---\033[0m"
 # Exit early if --test-flags mode is enabled
 if [ "$TEST_FLAGS_MODE" = true ]; then
     echo "--- Test Flags Mode Enabled ---"
+    echo "Target Architecture: $ARCHITECTURE" # Also print arch in test mode
     echo "Build Format: $BUILD_FORMAT"
     echo "Clean Action: $CLEANUP_ACTION"
     echo "Exiting without build."
