@@ -405,7 +405,7 @@ elif [ "$BUILD_FORMAT" = "appimage" ]; then
 [Desktop Entry]
 Name=Claude (AppImage)
 Comment=Claude Desktop (AppImage Version $VERSION)
-Exec=$APPIMAGE_ABS_PATH %u
+Exec=$(basename "$FINAL_OUTPUT_PATH") %u
 Icon=claude-desktop
 Type=Application
 Terminal=false

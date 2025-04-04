@@ -33,12 +33,12 @@ jobs:
         # No sudo needed if runner user has permissions or build.sh handles it internally
         ./build.sh ${{ inputs.build_flags }}
 
-    # Optional: Add steps here to upload the built artifact if needed
-    # - name: Upload Artifact
-    #   uses: actions/upload-artifact@v4
-    #   with:
-    #     name: package-arm64-${{ github.run_id }} # Example name
-    #     path: | # Adjust path based on expected output
-    #       claude-desktop_*.deb
-    #       claude-desktop-*.AppImage
-    #     if-no-files-found: error # Fail if build didn't produce output
+    # Upload the built artifact for the release job
+    - name: Upload ARM64 Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: package-arm64 # Simple name for release job to download
+        path: | # Adjust path based on expected output
+          claude-desktop_*.deb
+          claude-desktop-*.AppImage
+        if-no-files-found: error # Fail if build didn't produce output
