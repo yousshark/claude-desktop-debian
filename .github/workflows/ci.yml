@@ -1,4 +1,4 @@
-name: Main Branch CI
+name: CI
 
 on:
   push:
@@ -17,15 +17,10 @@ on:
   workflow_dispatch: # Allows manual triggering
 
 jobs:
-  codespell:
-    name: Check Spelling
-    uses: ./.github/workflows/codespell.yml
-
 
   # First, run the quick flag tests
   test-flags:
     name: Test Flags Parsing
-    needs: codespell
     # Runner is defined in the called workflow (test-flags.yml)
     uses: ./.github/workflows/test-flags.yml
     # No inputs needed for test-flags.yml
