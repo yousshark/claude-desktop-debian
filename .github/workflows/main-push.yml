@@ -5,7 +5,7 @@ on:
     branches:
       # Note: Pushing tags also triggers 'push' events. We filter later with 'if'.
       - main # Trigger on pushes to main
-      - aaddrick-no_sudo # Also trigger on pushes to this branch for testing
+      - dev # Also trigger on pushes to this branch for testing
     paths: # Trigger if relevant files change
       - 'build.sh'
       - 'scripts/**'
@@ -16,9 +16,15 @@ on:
   workflow_dispatch: # Allows manual triggering
 
 jobs:
+  codespell:
+    name: Check Spelling
+    uses: ./.github/workflows/codespell.yml
+
+
   # First, run the quick flag tests
   test-flags:
     name: Test Flags Parsing
+    needs: codespell
     # Runner is defined in the called workflow (test-flags.yml)
     uses: ./.github/workflows/test-flags.yml
     # No inputs needed for test-flags.yml
@@ -33,14 +39,17 @@ jobs:
       fail-fast: false # Allow other builds to continue if one fails
       matrix:
         include:
-          - arch: amd64 # Keep arch for consistency in naming/logic if needed inside called workflow
+          - arch: amd64
             flags: "" # Defaults (deb, clean=yes)
+            artifact_suffix: 'deb'
           - arch: amd64
             flags: "--build appimage --clean no"
+            artifact_suffix: 'appimage'
 
     uses: ./.github/workflows/build-amd64.yml # Call the dedicated amd64 workflow
     with:
       build_flags: ${{ matrix.flags }}
+      artifact_suffix: ${{ matrix.artifact_suffix }}
     # Secrets are not automatically passed to reusable workflows, pass if needed
     # secrets: inherit
 
@@ -54,14 +63,17 @@ jobs:
       fail-fast: false # Allow other builds to continue if one fails
       matrix:
         include:
-          - arch: arm64 # Keep arch for consistency in naming/logic if needed inside called workflow
-            flags: "--clean no"
+          - arch: arm64
+            flags: "--clean no" # Implies deb build
+            artifact_suffix: 'deb'
           - arch: arm64
             flags: "--build appimage"
+            artifact_suffix: 'appimage'
 
     uses: ./.github/workflows/build-arm64.yml # Call the dedicated arm64 workflow
     with:
       build_flags: ${{ matrix.flags }}
+      artifact_suffix: ${{ matrix.artifact_suffix }}
     # Secrets are not automatically passed to reusable workflows, pass if needed
     # secrets: inherit
 
@@ -76,17 +88,30 @@ jobs:
       contents: write # Needed to create releases and upload assets
 
     steps:
-      - name: Download AMD64 artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: package-amd64
-          path: artifacts/amd64 # Download to a specific subfolder
 
-      - name: Download ARM64 artifacts
+      - name: Download AMD64 deb artifact
         uses: actions/download-artifact@v4
         with:
-          name: package-arm64
-          path: artifacts/arm64 # Download to a specific subfolder
+          name: package-amd64-deb
+          path: artifacts/ # Download all artifacts into a single directory
+
+      - name: Download AMD64 AppImage artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: package-amd64-appimage
+          path: artifacts/
+
+      - name: Download ARM64 deb artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: package-arm64-deb
+          path: artifacts/
+
+      - name: Download ARM64 AppImage artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: package-arm64-appimage
+          path: artifacts/
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1

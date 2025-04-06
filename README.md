@@ -1,3 +1,12 @@
+## Release Workflow & Feedback
+
+This repository now uses a GitHub Actions workflow to automatically build and release `.deb` and `.AppImage` packages when a tag following the format `v<wrapper_version>+claude<claude_version>` (e.g., `v1.0.0+claude0.9.1`) is pushed.
+
+Please check the [Releases page](https://github.com/aaddrick/claude-desktop-debian/releases) for the latest builds. Feedback on the packages and the build process is greatly appreciated! Please open an issue if you encounter any problems.
+
+---
+
+
 **Arch Linux users:** For the PKGBUILD and Arch-specific instructions: [https://github.com/aaddrick/claude-desktop-arch](https://github.com/aaddrick/claude-desktop-arch)
 
 The build script now uses command-line flags to select the output format and cleanup behavior.
