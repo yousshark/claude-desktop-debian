@@ -81,13 +81,45 @@ jobs:
   release:
     name: Create Release
     # Only run this job if the trigger was a tag push starting with 'v'
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: startsWith(github.ref, 'refs/tags/v') && contains(github.ref_name, '+claude')
     needs: [test-flags, build-amd64, build-arm64] # Ensure builds are successful
     runs-on: ubuntu-latest
     permissions:
       contents: write # Needed to create releases and upload assets
 
     steps:
+      - name: Set Wrapper Version
+        run: echo "WRAPPER_VERSION=1.0.0" >> $GITHUB_ENV
+
+      - name: Make build script executable
+        run: chmod +x ./build.sh
+
+      - name: Get Claude Version
+        id: get_version
+        run: |
+          echo "Detecting Claude version..."
+          CLAUDE_VERSION=$(./build.sh --get-version)
+          if [ -z "$CLAUDE_VERSION" ]; then
+            echo "::error::Failed to get Claude version using build.sh --get-version"
+            exit 1
+          fi
+          echo "Detected Claude Version: $CLAUDE_VERSION"
+          echo "CLAUDE_VERSION=$CLAUDE_VERSION" >> $GITHUB_ENV
+          echo "claude_version=$CLAUDE_VERSION" >> $GITHUB_OUTPUT
+
+      - name: Verify Tag Format
+        run: |
+          EXPECTED_TAG="v${{ env.WRAPPER_VERSION }}+claude${{ env.CLAUDE_VERSION }}"
+          ACTUAL_TAG="${{ github.ref_name }}"
+          echo "Expected tag format: $EXPECTED_TAG"
+          echo "Actual tag pushed: $ACTUAL_TAG"
+          if [ "$EXPECTED_TAG" != "$ACTUAL_TAG" ]; then
+            echo "::error::Pushed tag '$ACTUAL_TAG' does not match the expected format '$EXPECTED_TAG' (v<wrapper_version>+claude<claude_version>)."
+            exit 1
+          fi
+          echo "✓ Tag format is correct."
+
+
       - name: Download AMD64 deb artifact
         uses: actions/download-artifact@v4
         with:
