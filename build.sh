@@ -53,6 +53,7 @@ if [ -d "$ORIGINAL_HOME/.nvm" ]; then
     export NVM_DIR="$ORIGINAL_HOME/.nvm"
     if [ -s "$NVM_DIR/nvm.sh" ]; then
         # Source NVM script to set up NVM environment variables temporarily
+        # shellcheck disable=SC1091
         \. "$NVM_DIR/nvm.sh" # This loads nvm
         # Initialize and find the path to the currently active or default Node version's bin directory
         NODE_BIN_PATH=""
@@ -71,7 +72,7 @@ fi # End of if [ -d "$ORIGINAL_HOME/.nvm" ] check
 
 
 echo "System Information:"
-echo "Distribution: $(cat /etc/os-release | grep "PRETTY_NAME" | cut -d'"' -f2)"
+echo "Distribution: $(grep "PRETTY_NAME" /etc/os-release | cut -d'"' -f2)"
 echo "Debian version: $(cat /etc/debian_version)"
 echo "Target Architecture: $ARCHITECTURE" 
 PACKAGE_NAME="claude-desktop"
@@ -177,7 +178,7 @@ for cmd in $ALL_DEPS_TO_CHECK; do
     fi
 done
 
-if [ ! -z "$DEPS_TO_INSTALL" ]; then
+if [ -n "$DEPS_TO_INSTALL" ]; then
     echo "System dependencies needed: $DEPS_TO_INSTALL"
     echo "Attempting to install using sudo..."
         if ! sudo -v; then
@@ -188,6 +189,8 @@ if [ ! -z "$DEPS_TO_INSTALL" ]; then
         echo "❌ Failed to run 'sudo apt update'."
         exit 1
     fi
+    # Here on purpose no "" to expand the 'list', thus
+    # shellcheck disable=SC2086
     if ! sudo apt install -y $DEPS_TO_INSTALL; then
          echo "❌ Failed to install dependencies using 'sudo apt install'."
          exit 1
@@ -199,14 +202,13 @@ rm -rf "$WORK_DIR"
 mkdir -p "$WORK_DIR"
 mkdir -p "$APP_STAGING_DIR" 
 echo -e "\033[1;36m--- Electron & Asar Handling ---\033[0m"
-CHOSEN_ELECTRON_MODULE_PATH="" ASAR_EXEC="" TEMP_PACKAGE_JSON_CREATED=false
+CHOSEN_ELECTRON_MODULE_PATH="" ASAR_EXEC=""
 
 echo "Ensuring local Electron and Asar installation in $WORK_DIR..."
-cd "$WORK_DIR" 
+cd "$WORK_DIR"
 if [ ! -f "package.json" ]; then
     echo "Creating temporary package.json in $WORK_DIR for local install..."
     echo '{"name":"claude-desktop-build","version":"0.0.1","private":true}' > package.json
-    TEMP_PACKAGE_JSON_CREATED=true
 fi
 
 ELECTRON_DIST_PATH="$WORK_DIR/node_modules/electron/dist"
@@ -369,10 +371,12 @@ FINAL_OUTPUT_PATH="" FINAL_DESKTOP_FILE_PATH=""
 if [ "$BUILD_FORMAT" = "deb" ]; then
     echo "📦 Calling Debian packaging script for $ARCHITECTURE..."
     chmod +x scripts/build-deb-package.sh
-    scripts/build-deb-package.sh \
+    if ! scripts/build-deb-package.sh \
         "$VERSION" "$ARCHITECTURE" "$WORK_DIR" "$APP_STAGING_DIR" \
-        "$PACKAGE_NAME" "$MAINTAINER" "$DESCRIPTION"
-    if [ $? -ne 0 ]; then echo "❌ Debian packaging script failed."; exit 1; fi
+        "$PACKAGE_NAME" "$MAINTAINER" "$DESCRIPTION"; then
+        echo "❌ Debian packaging script failed."
+        exit 1
+    fi
     DEB_FILE=$(find "$WORK_DIR" -maxdepth 1 -name "${PACKAGE_NAME}_${VERSION}_${ARCHITECTURE}.deb" | head -n 1)
     echo "✓ Debian Build complete!"
     if [ -n "$DEB_FILE" ] && [ -f "$DEB_FILE" ]; then
@@ -387,9 +391,11 @@ if [ "$BUILD_FORMAT" = "deb" ]; then
 elif [ "$BUILD_FORMAT" = "appimage" ]; then
     echo "📦 Calling AppImage packaging script for $ARCHITECTURE..."
     chmod +x scripts/build-appimage.sh
-    scripts/build-appimage.sh \
-        "$VERSION" "$ARCHITECTURE" "$WORK_DIR" "$APP_STAGING_DIR" "$PACKAGE_NAME"
-    if [ $? -ne 0 ]; then echo "❌ AppImage packaging script failed."; exit 1; fi
+    if ! scripts/build-appimage.sh \
+        "$VERSION" "$ARCHITECTURE" "$WORK_DIR" "$APP_STAGING_DIR" "$PACKAGE_NAME"; then
+        echo "❌ AppImage packaging script failed."
+        exit 1
+    fi
     APPIMAGE_FILE=$(find "$WORK_DIR" -maxdepth 1 -name "${PACKAGE_NAME}-${VERSION}-${ARCHITECTURE}.AppImage" | head -n 1)
     echo "✓ AppImage Build complete!"
     if [ -n "$APPIMAGE_FILE" ] && [ -f "$APPIMAGE_FILE" ]; then
@@ -397,9 +403,8 @@ elif [ "$BUILD_FORMAT" = "appimage" ]; then
         mv "$APPIMAGE_FILE" "$FINAL_OUTPUT_PATH"
         echo "Package created at: $FINAL_OUTPUT_PATH"
 
-                echo -e "\033[1;36m--- Generate .desktop file for AppImage ---\033[0m"
+        echo -e "\033[1;36m--- Generate .desktop file for AppImage ---\033[0m"
         FINAL_DESKTOP_FILE_PATH="./${PACKAGE_NAME}-appimage.desktop"
-        APPIMAGE_ABS_PATH=$(realpath "$FINAL_OUTPUT_PATH")
         echo "📝 Generating .desktop file for AppImage at $FINAL_DESKTOP_FILE_PATH..."
         cat > "$FINAL_DESKTOP_FILE_PATH" << EOF
 [Desktop Entry]
