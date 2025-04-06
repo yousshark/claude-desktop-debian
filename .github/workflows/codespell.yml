@@ -2,7 +2,11 @@
 ---
 name: Codespell
 run-name: |
-  Codespell: ${{ github.event_name == 'pull_request' && format('PR #{0} by @{1} - {2}', github.event.pull_request.number, github.actor, github.event.pull_request.title) || format('{0} by @{1} - {2}', github.event_name, github.actor, github.event.commits[0].message) }}
+  Codespell: ${{
+    github.event_name == 'pull_request' && format('PR #{0} by @{1} - {2}', github.event.pull_request.number, github.actor, github.event.pull_request.title) ||
+    github.event_name == 'push' && github.event.head_commit && format('Push by @{1} - {2}', github.actor, github.event.head_commit.message) ||
+    format('{0} triggered by @{1}', github.event_name, github.actor)
+  }}
 
 on:
   push:
