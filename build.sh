@@ -97,49 +97,11 @@ while [[ $# -gt 0 ]]; do
         TEST_FLAGS_MODE=true
         shift # past argument
         ;;
-      --get-version)
-        # Special mode: Only detect version and exit
-        echo "--- Get Version Mode Enabled ---"
-        # Perform minimal steps needed for version detection
-        echo "⚙️ Detecting system architecture..."
-        HOST_ARCH_DETECT=$(dpkg --print-architecture)
-        echo "Detected host architecture: $HOST_ARCH_DETECT"
-        if [ "$HOST_ARCH_DETECT" = "amd64" ]; then
-            _CLAUDE_DOWNLOAD_URL="https://storage.googleapis.com/osprey-downloads-c02f6a0d-347c-492b-a752-3e0651722e97/nest-win-x64/Claude-Setup-x64.exe"
-            _CLAUDE_EXE_FILENAME="Claude-Setup-x64.exe"
-        elif [ "$HOST_ARCH_DETECT" = "arm64" ]; then
-            _CLAUDE_DOWNLOAD_URL="https://storage.googleapis.com/osprey-downloads-c02f6a0d-347c-492b-a752-3e0651722e97/nest-win-arm64/Claude-Setup-arm64.exe"
-            _CLAUDE_EXE_FILENAME="Claude-Setup-arm64.exe"
-        else
-            echo "❌ Unsupported architecture for version detection: $HOST_ARCH_DETECT." >&2
-            exit 1
-        fi
-        _WORK_DIR_DETECT="$PROJECT_ROOT/build-version-detect"
-        rm -rf "$_WORK_DIR_DETECT"
-        mkdir -p "$_WORK_DIR_DETECT"
-        _CLAUDE_EXE_PATH_DETECT="$_WORK_DIR_DETECT/$_CLAUDE_EXE_FILENAME"
-        echo "📥 Downloading Claude installer for version detection..."
-        if ! wget -q -O "$_CLAUDE_EXE_PATH_DETECT" "$_CLAUDE_DOWNLOAD_URL"; then echo "❌ Failed download" >&2; exit 1; fi
-        echo "📦 Extracting installer for version detection..."
-        _CLAUDE_EXTRACT_DIR_DETECT="$_WORK_DIR_DETECT/claude-extract"
-        mkdir -p "$_CLAUDE_EXTRACT_DIR_DETECT"
-        if ! 7z x -y -o"$_CLAUDE_EXTRACT_DIR_DETECT" "$_CLAUDE_EXE_PATH_DETECT" > /dev/null; then echo "❌ Failed installer extraction" >&2; exit 1; fi
-        cd "$_CLAUDE_EXTRACT_DIR_DETECT"
-        _NUPKG_PATH_RELATIVE_DETECT=$(find . -maxdepth 1 -name "AnthropicClaude-*.nupkg" | head -1)
-        if [ -z "$_NUPKG_PATH_RELATIVE_DETECT" ]; then echo "❌ Could not find nupkg" >&2; cd "$PROJECT_ROOT"; rm -rf "$_WORK_DIR_DETECT"; exit 1; fi
-        _DETECTED_VERSION=$(echo "$_NUPKG_PATH_RELATIVE_DETECT" | LC_ALL=C grep -oP 'AnthropicClaude-\K[0-9]+\.[0-9]+\.[0-9]+(?=-full|-arm64-full)')
-        cd "$PROJECT_ROOT"
-        rm -rf "$_WORK_DIR_DETECT" # Clean up temporary download
-        if [ -z "$_DETECTED_VERSION" ]; then echo "❌ Could not extract version from nupkg: $_NUPKG_PATH_RELATIVE_DETECT" >&2; exit 1; fi
-        echo "$_DETECTED_VERSION" # Print only the version number
-        exit 0 # Exit successfully after printing version
-        ;;
         -h|--help)
         echo "Usage: $0 [--build deb|appimage] [--clean yes|no] [--test-flags]"
         echo "  --build: Specify the build format (deb or appimage). Default: deb"
         echo "  --clean: Specify whether to clean intermediate build files (yes or no). Default: yes"
         echo "  --test-flags: Parse flags, print results, and exit without building."
-        echo "  --get-version: Download installer, detect Claude version, print it, and exit."
         exit 0
         ;;
         *)            echo "❌ Unknown option: $1" >&2
