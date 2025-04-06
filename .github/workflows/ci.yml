@@ -1,9 +1,7 @@
 name: CI
 run-name: |
   CI: ${{
-    github.event_name == 'pull_request' && format('PR #{0} by @{1} - {2}', github.event.pull_request.number, github.actor, github.event.pull_request.title) ||
-    github.event_name == 'push' && github.event.head_commit && format('Push by @{1} - {2}', github.actor, github.event.head_commit.message) ||
-    format('{0} triggered by @{1}', github.event_name, github.actor)
+    github.event_name == 'pull_request' && format('PR #{0} by @{1} - {2}', github.event.pull_request.number, github.actor, github.event.pull_request.title) || github.event_name == 'push' && github.event.head_commit && format('Push by @{1} - {2}', github.actor, github.event.head_commit.message) || format('{0} triggered by @{1}', github.event_name, github.actor)
   }}
 
 on:
