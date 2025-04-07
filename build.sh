@@ -335,10 +335,46 @@ mkdir -p app.asar.contents/resources/i18n
 cp "$CLAUDE_EXTRACT_DIR/lib/net45/resources/Tray"* app.asar.contents/resources/
 cp "$CLAUDE_EXTRACT_DIR/lib/net45/resources/"*-*.json app.asar.contents/resources/i18n/
 
-echo "Downloading Main Window Fix Assets"
-cd app.asar.contents
-wget -O- https://github.com/emsi/claude-desktop/raw/refs/heads/main/assets/main_window.tgz | tar -zxvf -
-cd .. 
+echo "##############################################################"
+echo "Removing "'!'" from 'if ("'!'"isWindows && isMainWindow) return null;'"
+echo "detection flag to to enable title bar"
+
+echo "Current working directory: '$PWD'"
+
+SEARCH_BASE="app.asar.contents/.vite/renderer/main_window/assets"
+TARGET_PATTERN="MainWindowPage-*.js"
+
+echo "Searching for '$TARGET_PATTERN' within '$SEARCH_BASE'..."
+# Find the target file recursively (ensure only one matches)
+TARGET_FILES=$(find "$SEARCH_BASE" -type f -name "$TARGET_PATTERN")
+# Count non-empty lines to get the number of files found
+NUM_FILES=$(echo "$TARGET_FILES" | grep -c .)
+
+if [ "$NUM_FILES" -eq 0 ]; then
+  echo "Error: No file matching '$TARGET_PATTERN' found within '$SEARCH_BASE'." >&2
+  exit 1
+elif [ "$NUM_FILES" -gt 1 ]; then
+  echo "Error: Expected exactly one file matching '$TARGET_PATTERN' within '$SEARCH_BASE', but found $NUM_FILES." >&2
+  echo "Found files:" >&2
+  echo "$TARGET_FILES" >&2
+  exit 1
+else
+  # Exactly one file found
+  TARGET_FILE="$TARGET_FILES" # Assign the found file path
+  echo "Found target file: $TARGET_FILE"
+  echo "Attempting to replace '"'!'"d&&e' with 'd&&e' in $TARGET_FILE..."
+  sed -i 's/\!d\&\&e/d\&\&e/g' "$TARGET_FILE"
+
+  # Verification
+  if grep -q 'd\&\&e' "$TARGET_FILE" && ! grep -q '\!d\&\&e' "$TARGET_FILE"; then
+    echo "Successfully replaced '"'!'"d&&e' with 'd&&e' in $TARGET_FILE"
+  else
+    echo "Error: Failed to replace '"'!'"d&&e' with 'd&&e' in $TARGET_FILE. Check file contents." >&2
+    exit 1
+  fi
+fi
+echo "##############################################################"
+
 "$ASAR_EXEC" pack app.asar.contents app.asar
 
 mkdir -p "$APP_STAGING_DIR/app.asar.unpacked/node_modules/claude-native"
