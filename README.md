@@ -41,13 +41,13 @@ git clone https://github.com/aaddrick/claude-desktop-debian.git
 cd claude-desktop-debian
 
 # Build the package (Defaults to .deb and cleans build files)
-sudo ./build.sh
+./build.sh
 
 # Example: Build an AppImage and keep intermediate files
-sudo ./build.sh --build appimage --clean no
+./build.sh --build appimage --clean no
 
 # Example: Build a .deb (explicitly) and clean intermediate files (default)
-sudo ./build.sh --build deb --clean yes
+./build.sh --build deb --clean yes
 ```
 
 The script will automatically:
