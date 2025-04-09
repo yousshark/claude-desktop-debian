@@ -362,14 +362,17 @@ else
   # Exactly one file found
   TARGET_FILE="$TARGET_FILES" # Assign the found file path
   echo "Found target file: $TARGET_FILE"
-  echo "Attempting to replace '"'!'"d&&e' with 'd&&e' in $TARGET_FILE..."
-  sed -i 's/\!d\&\&e/d\&\&e/g' "$TARGET_FILE"
+  echo "Attempting to replace patterns like 'if(!VAR1 && VAR2)' with 'if(VAR1 && VAR2)' in $TARGET_FILE..."
+  # Use character classes [a-zA-Z]+ to match minified variable names
+  # Capture group 1: first variable name
+  # Capture group 2: second variable name
+  sed -i -E 's/if\(!([a-zA-Z]+)[[:space:]]*&&[[:space:]]*([a-zA-Z]+)\)/if(\1 \&\& \2)/g' "$TARGET_FILE"
 
-  # Verification
-  if grep -q 'd\&\&e' "$TARGET_FILE" && ! grep -q '\!d\&\&e' "$TARGET_FILE"; then
-    echo "Successfully replaced '"'!'"d&&e' with 'd&&e' in $TARGET_FILE"
+  # Verification: Check if the original pattern structure still exists
+  if ! grep -q -E 'if\(![a-zA-Z]+[[:space:]]*&&[[:space:]]*[a-zA-Z]+\)' "$TARGET_FILE"; then
+    echo "Successfully replaced patterns like 'if(!VAR1 && VAR2)' with 'if(VAR1 && VAR2)' in $TARGET_FILE"
   else
-    echo "Error: Failed to replace '"'!'"d&&e' with 'd&&e' in $TARGET_FILE. Check file contents." >&2
+    echo "Error: Failed to replace patterns like 'if(!VAR1 && VAR2)' in $TARGET_FILE. Check file contents." >&2
     exit 1
   fi
 fi
