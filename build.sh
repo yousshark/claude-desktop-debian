@@ -156,7 +156,7 @@ check_command() {
 echo "Checking dependencies..."
 DEPS_TO_INSTALL=""
 COMMON_DEPS="p7zip wget wrestool icotool convert npx"
-DEB_DEPS="dpkg-dev"
+DEB_DEPS="dpkg-deb"
 APPIMAGE_DEPS="" 
 ALL_DEPS_TO_CHECK="$COMMON_DEPS"
 if [ "$BUILD_FORMAT" = "deb" ]; then
