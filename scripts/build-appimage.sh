@@ -107,7 +107,7 @@ ELECTRON_ARGS=("--no-sandbox" "\$APP_PATH")
 # Add Wayland flags if Wayland is detected
 if [ "\$IS_WAYLAND" = true ]; then
   echo "AppRun: Wayland detected, adding flags."
-  ELECTRON_ARGS+=("--enable-features=UseOzonePlatform,WaylandWindowDecorations" "--ozone-platform=wayland")
+  ELECTRON_ARGS+=("--enable-features=UseOzonePlatform,WaylandWindowDecorations" "--ozone-platform=wayland" "--enable-wayland-ime" "--wayland-text-input-version=3")
 fi
 
 # Change to the application resources directory (where app.asar is)
