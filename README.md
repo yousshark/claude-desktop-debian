@@ -1,3 +1,7 @@
+# Archived
+Sorry all, I no longer use Debian, so can't maintain this further. Please feel free to fork and continue developing. 
+
+
 ## Release Workflow & Feedback
 
 This repository now uses a GitHub Actions workflow to automatically build and release `.deb` and `.AppImage` packages when a tag following the format `v<wrapper_version>+claude<claude_version>` (e.g., `v1.0.0+claude0.9.1`) is pushed.
