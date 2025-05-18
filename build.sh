@@ -267,11 +267,30 @@ echo "Using asar executable: $ASAR_EXEC"
 echo -e "\033[1;36m--- Download the latest Claude executable ---\033[0m"
 echo "📥 Downloading Claude Desktop installer for $ARCHITECTURE..."
 CLAUDE_EXE_PATH="$WORK_DIR/$CLAUDE_EXE_FILENAME"
-if ! wget -O "$CLAUDE_EXE_PATH" "$CLAUDE_DOWNLOAD_URL"; then
+if ! curl -fSL --retry 3 "$CLAUDE_DOWNLOAD_URL" -o "$CLAUDE_EXE_PATH"; then
     echo "❌ Failed to download Claude Desktop installer from $CLAUDE_DOWNLOAD_URL"
     exit 1
 fi
 echo "✓ Download complete: $CLAUDE_EXE_FILENAME"
+
+echo "🔐 Verifying SHA256 checksum..."
+if [ "$ARCHITECTURE" = "amd64" ]; then
+    EXPECTED_HASH="bb346236cbce504560faa65526244d186507a6a19d1adee2b7f0c58bb0c7a82c"
+elif [ "$ARCHITECTURE" = "arm64" ]; then
+    EXPECTED_HASH="ddb162bb7e6c6ab29bc18d5effa304c2b1d613104c01ef868942d56572210350"
+else
+    echo "Unknown architecture: $ARCHITECTURE"
+    exit 1
+fi
+
+ACTUAL_HASH=$(sha256sum "$CLAUDE_EXE_PATH" | awk '{print $1}')
+if [[ "$ACTUAL_HASH" != "$EXPECTED_HASH" ]]; then
+    echo "❌ SHA256 checksum mismatch!"
+    echo "Expected: $EXPECTED_HASH"
+    echo "Actual:   $ACTUAL_HASH"
+    exit 1
+fi
+echo "✅ File integrity verified."
 
 echo "📦 Extracting resources from $CLAUDE_EXE_FILENAME into separate directory..."
 CLAUDE_EXTRACT_DIR="$WORK_DIR/claude-extract"
