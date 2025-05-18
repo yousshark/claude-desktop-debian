@@ -1,6 +1,11 @@
-# Archived
-Sorry all, I no longer use Debian, so can't maintain this further. Please feel free to fork and continue developing. 
+# Note
+This is a fork from original [project](https://github.com/aaddrick/claude-desktop-debian).
 
+# Purpose of the fork
+Add security to the project step by step.
+Feel free to maintain or fork. 
+
+The rest of this readme is exactly the same as the original because the installation remains the same ...
 
 ## Release Workflow & Feedback
 
@@ -41,7 +46,7 @@ For Debian-based distributions (Debian, Ubuntu, Linux Mint, MX Linux, etc.), you
 
 ```bash
 # Clone this repository
-git clone https://github.com/aaddrick/claude-desktop-debian.git
+git clone https://github.com/yousshark/claude-desktop-debian.git
 cd claude-desktop-debian
 
 # Build the package (Defaults to .deb and cleans build files)
