@@ -42,14 +42,14 @@ Supports the Tray menu! (Screenshot of running on KDE)
 
 # Building & Installation (docker based on any distro with docker)
 
-For Docker-based creation of the appimage
+For Docker-based creation of the appimage or deb file
 
 ```bash
 # Clone this repository
 git clone https://github.com/yousshark/claude-desktop-debian.git
 cd claude-desktop-debian
 
-# Build the package
+# Build the appimage by default
 ./docker-build.sh
 
 # Your output will be in the output directory
@@ -59,6 +59,13 @@ Permissions Size User  Date Modified Name
 
 # You can also get it to make a deb if you prefer all flags are supported
 ./docker-builder.sh --build deb --clean yes
+
+# Your output will be added to the output directory
+ls -alh output
+Permissions Size User  Date Modified Name
+.rwxr-xr-x  124M user 26 Jun 12:42  claude-desktop-0.11.3-amd64.AppImage
+.rw-r--r--   85M user 26 Jun 12:44  claude-desktop_0.11.3_amd64.deb
+
 ```
 
 # Building & Installation (Debian/Ubuntu based)
