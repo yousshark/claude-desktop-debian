@@ -56,6 +56,9 @@ cd claude-desktop-debian
 ls -alh output/
 Permissions Size User  Date Modified Name
 .rwxr-xr-x  124M user1 26 Jun 11:52  claude-desktop-0.11.3-amd64.AppImage
+
+# You can also get it to make a deb if you prefer all flags are supported
+./docker-builder.sh --build deb --clean yes
 ```
 
 # Building & Installation (Debian/Ubuntu based)

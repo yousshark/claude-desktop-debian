@@ -34,4 +34,9 @@ RUN curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.2/install.sh | P
 RUN echo node > .nvmrc
 RUN nvm install lts/jod
 
-CMD ./build.sh --build appimage --clean yes
+#CMD [ '--build', 'appimage', '--clean', 'yes' ]
+CMD [ "--build", "appimage", "--clean", "yes" ]
+#ENTRYPOINT /home/builder/build.sh
+#ENTRYPOINT [ './build.sh' ]
+ENTRYPOINT [ "/home/builder/build.sh" ]
+#ENTRYPOINT [ '/usr/bin/env', 'bash', '-c', 'ls' ]
