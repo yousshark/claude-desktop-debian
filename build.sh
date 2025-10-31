@@ -277,7 +277,7 @@ echo "✓ Download complete: $CLAUDE_EXE_FILENAME"
 
 echo "🔐 Verifying SHA256 checksum..."
 if [ "$ARCHITECTURE" = "amd64" ]; then
-    EXPECTED_HASH="bb346236cbce504560faa65526244d186507a6a19d1adee2b7f0c58bb0c7a82c"
+    EXPECTED_HASH="79891e59e6c47bca913b91a7cfa2b92f83a1ebb17a6203b920183ec411f6d316"
 elif [ "$ARCHITECTURE" = "arm64" ]; then
     EXPECTED_HASH="ddb162bb7e6c6ab29bc18d5effa304c2b1d613104c01ef868942d56572210350"
 else
@@ -532,4 +532,7 @@ elif [ "$BUILD_FORMAT" = "appimage" ]; then
 fi
 echo -e "\033[1;34m======================\033[0m"
 
+if [ "$BUILT_IN_DOCKER" = 1 ]; then
+  mv -v $FINAL_OUTPUT_PATH ./output/
+fi
 exit 0
