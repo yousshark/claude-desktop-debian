@@ -155,7 +155,7 @@ check_command() {
 
 echo "Checking dependencies..."
 DEPS_TO_INSTALL=""
-COMMON_DEPS="p7zip wget wrestool icotool convert npx"
+COMMON_DEPS="curl file p7zip wget wrestool icotool convert npx"
 DEB_DEPS="dpkg-deb"
 APPIMAGE_DEPS="" 
 ALL_DEPS_TO_CHECK="$COMMON_DEPS"
@@ -169,6 +169,8 @@ for cmd in $ALL_DEPS_TO_CHECK; do
     if ! check_command "$cmd"; then
         case "$cmd" in
             "p7zip") DEPS_TO_INSTALL="$DEPS_TO_INSTALL p7zip-full" ;;
+            "curl") DEPS_TO_INSTALL="$DEPS_TO_INSTALL curl" ;;
+            "file") DEPS_TO_INSTALL="$DEPS_TO_INSTALL file" ;;
             "wget") DEPS_TO_INSTALL="$DEPS_TO_INSTALL wget" ;;
             "wrestool"|"icotool") DEPS_TO_INSTALL="$DEPS_TO_INSTALL icoutils" ;;
             "convert") DEPS_TO_INSTALL="$DEPS_TO_INSTALL imagemagick" ;;
