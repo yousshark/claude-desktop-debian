@@ -40,6 +40,34 @@ Supports the Ctrl+Alt+Space popup!
 Supports the Tray menu! (Screenshot of running on KDE)
 ![image](https://github.com/user-attachments/assets/ba209824-8afb-437c-a944-b53fd9ecd559)
 
+# Building & Installation (docker based on any distro with docker)
+
+For Docker-based creation of the appimage or deb file
+
+```bash
+# Clone this repository
+git clone https://github.com/yousshark/claude-desktop-debian.git
+cd claude-desktop-debian
+
+# Build the appimage by default
+./docker-build.sh
+
+# Your output will be in the output directory
+ls -alh output/
+Permissions Size User  Date Modified Name
+.rwxr-xr-x  124M user1 26 Jun 11:52  claude-desktop-0.11.3-amd64.AppImage
+
+# You can also get it to make a deb if you prefer all flags are supported
+./docker-builder.sh --build deb --clean yes
+
+# Your output will be added to the output directory
+ls -alh output
+Permissions Size User  Date Modified Name
+.rwxr-xr-x  124M user 26 Jun 12:42  claude-desktop-0.11.3-amd64.AppImage
+.rw-r--r--   85M user 26 Jun 12:44  claude-desktop_0.11.3_amd64.deb
+
+```
+
 # Building & Installation (Debian/Ubuntu based)
 
 For Debian-based distributions (Debian, Ubuntu, Linux Mint, MX Linux, etc.), you can build Claude Desktop using the provided build script. Use command-line flags to specify the desired output format (`.deb` or `.AppImage`) and whether to clean up intermediate build files.
